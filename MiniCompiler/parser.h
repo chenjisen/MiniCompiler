@@ -213,9 +213,8 @@ struct Expr {
   using Node = std::variant<Identifier, LiteralExpr, CallExpr>;
   Node node;
 
-  template<typename T>
-  static ExprPtr make(T&& value) {
-    return std::make_unique<T>(std::move(value))
+  template <typename T> static ExprPtr make(T &&value) {
+    return std::make_unique<Expr>(std::forward<T>(value));
   }
 };
 
@@ -224,9 +223,8 @@ struct Stmt {
                             VarDecl, FunctionDecl>;
   Node node;
 
-  template<typename T>
-  static StmtPtr make(T&& value) {
-    return std::make_unique<T>(std::move(value))
+  template <typename T> static StmtPtr make(T &&value) {
+    return std::make_unique<Stmt>(std::forward<T>(value));
   }
 };
 
@@ -434,7 +432,7 @@ private:
       stmts.push_back(parse_stmt());
     }
     expect(TokenKind::RBrace, "after function body");
-    return {stmts};
+    return {std::move(stmts)};
   }
 
   // assignment_stmt = identifier "=" expression ";"
@@ -452,8 +450,7 @@ private:
   StmtPtr parse_call_stmt() {
     auto call = parse_call_expression();
     expect(TokenKind::Semicolon, "after call statement");
-    return Stmt::make(
-        CallStmt(std::move(std::get<CallExpr>(call->node))));
+    return Stmt::make(CallStmt(std::move(std::get<CallExpr>(call->node))));
   }
 
   // return_stmt = "return" [ expression ] ";"
