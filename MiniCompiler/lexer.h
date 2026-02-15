@@ -1,16 +1,14 @@
 #pragma once
 
 #include <cctype>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <optional>
+#include <cstdint>
+#include <format>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_map>
-#include <variant>
 #include <vector>
+
+namespace mini_compiler {
 
 using std::string;
 using std::string_view;
@@ -98,7 +96,7 @@ enum class TokenKind {
   None,
 };
 
-bool is_keyword(string_view sv) {
+inline bool is_keyword(string_view sv) {
   return sv == "let" || sv == "fn" || sv == "return";
 }
 
@@ -168,7 +166,7 @@ struct SourcePosition {
 struct Token {
   TokenKind kind{};
   string_view lexeme;
-  SourcePosition pos{};
+  SourcePosition pos;
 };
 
 // ==========================================
@@ -181,15 +179,17 @@ public:
   std::vector<Token> tokenize() {
     std::vector<Token> tokens;
     while (!is_at_end()) {
-      Token tok = next_token();
-      if (tok.kind != TokenKind::Error) // 忽略错误 token 或保留特殊 token
-        tokens.emplace_back(std::move(tok));
+      Token const tok = next_token();
+      if (tok.kind != TokenKind::Error) { // 忽略错误 token 或保留特殊 token
+        tokens.emplace_back(tok);
+      }
     }
     tokens.push_back({TokenKind::Eof, "", pos});
     if (!errors.empty()) {
       std::string msg = "Lex errors:\n";
-      for (const auto &e : errors)
+      for (const auto &e : errors) {
         msg += e + "\n";
+      }
       throw std::runtime_error(msg);
     }
 
@@ -198,20 +198,20 @@ public:
 
 private:
   string_view source;
-  SourcePosition pos{};
+  SourcePosition pos;
 
   std::vector<std::string> errors;
 
   Token next_token() {
     skip_whitespace();
     if (is_at_end()) {
-      return {TokenKind::Eof, "", pos};
+      return {.kind = TokenKind::Eof, .lexeme = "", .pos = pos};
     }
 
-    char c = peek();
+    char const c = peek();
 
     // number: digits ( '.' digits )?
-    if (std::isdigit(c)) {
+    if (std::isdigit(c) != 0) {
       return lex_number();
     }
 
@@ -228,27 +228,33 @@ private:
 
   bool is_at_end() const { return pos.index >= source.size(); }
 
-  static bool is_ident_start(char c) { return std::isalpha(c) || c == '_'; }
-  static bool is_ident_part(char c) { return std::isalnum(c) || c == '_'; }
+  static bool is_ident_start(char c) {
+    return (std::isalpha(c) != 0) || c == '_';
+  }
+  static bool is_ident_part(char c) {
+    return (std::isalnum(c) != 0) || c == '_';
+  }
 
   char peek(int offset = 0) const {
-    int p = pos.index + offset;
-    if (p >= source.size())
+    int const p = pos.index + offset;
+    if (p >= source.size()) {
       return '\0';
+    }
     return source[p];
   }
 
   char advance() {
-    if (is_at_end())
+    if (is_at_end()) {
       return '\0';
+    }
     pos.colno++;
     return source[pos.index++];
   }
 
   void skip_whitespace() {
     while (!is_at_end()) {
-      char c = peek();
-      if (std::isspace(c)) {
+      char const c = peek();
+      if (std::isspace(c) != 0) {
         if (c == '\n') {
           pos.lineno++;
           pos.colno = 0;
@@ -259,8 +265,9 @@ private:
           // line comment //
           advance();
           advance(); // consume '//'
-          while (!is_at_end() && peek() != '\n')
+          while (!is_at_end() && peek() != '\n') {
             advance();
+          }
         } else {
           break;
         }
@@ -271,32 +278,33 @@ private:
   }
 
   Token lex_identifier() {
-    SourcePosition start_pos = pos;
+    SourcePosition const start_pos = pos;
     while (!is_at_end() && is_ident_part(peek())) {
       advance();
     }
-    string_view text =
+    string_view const text =
         source.substr(start_pos.index, pos.index - start_pos.index);
     if (is_keyword(text)) {
       if (text == "let") {
-        return {TokenKind::KwLet, text, start_pos};
+        return {.kind = TokenKind::KwLet, .lexeme = text, .pos = start_pos};
       }
       if (text == "fn") {
-        return {TokenKind::KwFn, text, start_pos};
+        return {.kind = TokenKind::KwFn, .lexeme = text, .pos = start_pos};
       }
       if (text == "return") {
-        return {TokenKind::KwReturn, text, start_pos};
+        return {.kind = TokenKind::KwReturn, .lexeme = text, .pos = start_pos};
       }
       throw std::runtime_error("Unknown keyword: " + string(text));
     }
-    return {TokenKind::Identifier, text, start_pos};
+    return {.kind = TokenKind::Identifier, .lexeme = text, .pos = start_pos};
   }
 
   Token lex_number() {
-    SourcePosition start_pos = pos;
+    SourcePosition const start_pos = pos;
 
-    while (!is_at_end() && std::isdigit(peek()))
+    while (!is_at_end() && (std::isdigit(peek()) != 0)) {
       advance();
+    }
 
     TokenKind kind = TokenKind::None;
 
@@ -304,63 +312,69 @@ private:
     if (peek() == '.') {
       kind = TokenKind::FloatLiteral;
       advance(); // Consume .
-      if (std::isdigit(peek())) {
-        while (std::isdigit(peek()))
+      if (std::isdigit(peek()) != 0) {
+        while (std::isdigit(peek()) != 0) {
           advance();
+        }
       }
     } else {
       kind = TokenKind::IntLiteral;
     }
 
-    return {kind, source.substr(start_pos.index, pos.index - start_pos.index),
-            start_pos};
+    return {.kind = kind,
+            .lexeme =
+                source.substr(start_pos.index, pos.index - start_pos.index),
+            .pos = start_pos};
   }
 
   Token lex_string_literal() {
     advance(); // consume "
-    SourcePosition start_pos = pos;
+    SourcePosition const start_pos = pos;
 
     while (!is_at_end()) {
-      char c = peek();
+      char const c = peek();
       if (c == '\\') {
         advance(); // skip escape
         if (!is_at_end()) {
           advance(); // skip escaped char
         }
         // char next_c = peek();
-        // TODO: escape
+        // TODO(cjs): escape
         continue;
-      } else if (c == '\n') {
-        SourcePosition err_pos = pos; // 记录错误位置
-        advance();                    // 消费换行符
-        errors.push_back("New line in string");
-        return {TokenKind::Error, "", err_pos};
-      } else if (c == '"') {
+      }
+      if (c == '\n') {
+        SourcePosition const err_pos = pos; // 记录错误位置
+        advance();                          // 消费换行符
+        errors.emplace_back("New line in string");
+        return {.kind = TokenKind::Error, .lexeme = "", .pos = err_pos};
+      }
+      if (c == '"') {
         advance(); // 消费闭引号
         // 提取字符串内容，不包括开头和结尾的引号
-        string_view content =
+        string_view const content =
             source.substr(start_pos.index, pos.index - start_pos.index - 1);
-        return {TokenKind::StringLiteral, content, start_pos};
-      } else {
-        advance();
+        return {.kind = TokenKind::StringLiteral,
+                .lexeme = content,
+                .pos = start_pos};
       }
+      advance();
     }
-    errors.push_back("Unterminated string");
-    return {TokenKind::Error, "", start_pos};
+    errors.emplace_back("Unterminated string");
+    return {.kind = TokenKind::Error, .lexeme = "", .pos = start_pos};
   }
 
   Token lex_symbol() {
     auto make_token = [&](TokenKind kind) {
-      SourcePosition start_pos = pos;
+      SourcePosition const start_pos = pos;
       for (int i = 0; i < to_string(kind).size(); ++i) {
         advance();
       }
-      string_view lexeme =
+      string_view const lexeme =
           source.substr(start_pos.index, pos.index - start_pos.index);
       return Token(kind, lexeme, start_pos);
     };
 
-    char c = peek();
+    char const c = peek();
     auto peek1 = peek(1);
     auto peek2 = peek(2);
 
@@ -379,15 +393,13 @@ private:
       if (peek1 == '<') {
         if (peek2 == '=') {
           return make_token(TokenKind::LeftShiftEq);
-        } else {
-          return make_token(TokenKind::LeftShift);
         }
+        return make_token(TokenKind::LeftShift);
       } else if (peek1 == '=') {
         if (peek2 == '>') {
           return make_token(TokenKind::Spaceship);
-        } else {
-          return make_token(TokenKind::LessEq);
         }
+        return make_token(TokenKind::LessEq);
       } else {
         return make_token(TokenKind::Less);
       }
@@ -398,9 +410,8 @@ private:
       if (peek1 == '>') {
         if (peek2 == '=') {
           return make_token(TokenKind::RightShiftEq);
-        } else {
-          return make_token(TokenKind::RightShift);
         }
+        return make_token(TokenKind::RightShift);
       } else if (peek1 == '=') {
         return make_token(TokenKind::GreaterEq);
       } else {
@@ -437,9 +448,8 @@ private:
       if (peek1 == '|') {
         if (peek2 == '=') {
           return make_token(TokenKind::LogicalOrEq);
-        } else {
-          return make_token(TokenKind::LogicalOr);
         }
+        return make_token(TokenKind::LogicalOr);
       } else if (peek1 == '=') {
         return make_token(TokenKind::PipeEq);
       } else {
@@ -452,9 +462,8 @@ private:
       if (peek1 == '&') {
         if (peek2 == '=') {
           return make_token(TokenKind::LogicalAndEq);
-        } else {
-          return make_token(TokenKind::LogicalAnd);
         }
+        return make_token(TokenKind::LogicalAnd);
       } else if (peek1 == '=') {
         return make_token(TokenKind::AmpersandEq);
       } else {
@@ -593,10 +602,14 @@ private:
       return make_token(TokenKind::Dollar);
       break;
     default:
-      string_view sv(&c, 1);
+      string_view const sv(&c, 1);
       errors.push_back("Unexpected character: " + string(sv) + " at pos " +
                        pos.to_string());
-      return {TokenKind::Error, std::string_view(&c, 1), pos};
+      return {.kind = TokenKind::Error,
+              .lexeme = std::string_view(&c, 1),
+              .pos = pos};
     }
   }
 };
+
+} // namespace mini_compiler

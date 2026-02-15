@@ -1,0 +1,10 @@
+Checks: >
+  *,
+  -llvmlibc-*,
+  -altera-*,
+  -fuchsia-*,
+  -llvm-header-guard,
+  -clang-diagnostic-pragma-once-outside-header,
+  -readability-identifier-length,
+  -modernize-use-nodiscard,
+  -modernize-use-trailing-return-type,

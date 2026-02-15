@@ -116,22 +116,20 @@
 //        这个实现完全遵循您定义的文法，可以解析符合语法的代码并构建抽象语法树。如果需要扩展功能（如添加运算符、控制流等），可以在现有基础上轻松扩展表达式系统。
 
 #include <cctype>
-#include <cstdint>
 #include <cstdlib>
-#include <exception>
-#include <iostream>
-#include <map>
+#include <format>
 #include <memory>
 #include <optional>
 #include <stdexcept>
 #include <string>
 #include <string_view>
-#include <unordered_map>
 #include <utility>
 #include <variant>
 #include <vector>
 
 #include "lexer.h"
+
+namespace mini_compiler {
 
 using std::string;
 using std::string_view;
@@ -245,8 +243,9 @@ private:
   int pos = 0;
 
   const Token &peek(int offset = 0) const {
-    if (pos + offset >= tokens.size())
+    if (pos + offset >= tokens.size()) {
       return tokens.back();
+    }
     return tokens[pos + offset];
   }
 
@@ -269,9 +268,10 @@ private:
   }
 
   Token expect(TokenKind kind, string_view msg = "") {
-    if (!match(kind))
+    if (!match(kind)) {
       throw error(std::format("expected {}, got {} {}", string(to_string(kind)),
                               string(to_string(peek().kind)), msg));
+    }
     return advance();
   }
 
@@ -300,9 +300,11 @@ private:
     if (token.lexeme == "bool") {
       kind = Type::Kind::Bool;
     }
-    if (kind)
-      return {*kind, token.lexeme};
-    return {Type::Kind::Custom, token.lexeme}; // For user-defined types
+    if (kind) {
+      return {.kind = *kind, .name = token.lexeme};
+    }
+    return {.kind = Type::Kind::Custom,
+            .name = token.lexeme}; // For user-defined types
   }
 
   LiteralExpr parse_literal() {
@@ -319,8 +321,9 @@ private:
     if (match(TokenKind::BoolLiteral)) {
       kind = LiteralExpr::Kind::Bool;
     }
-    if (kind)
-      return {*kind, advance().lexeme};
+    if (kind) {
+      return {.kind = *kind, .value = advance().lexeme};
+    }
     throw error("Expected literal in expression: " + string(peek().lexeme));
   }
 
@@ -351,7 +354,7 @@ private:
   }
 
   ExprPtr parse_call_expression() {
-    Identifier name = parse_identifier();
+    Identifier const name = parse_identifier();
     expect(TokenKind::LeftParen, "after function name");
     vector<ExprPtr> args;
     if (!match(TokenKind::RightParen)) {
@@ -379,24 +382,25 @@ private:
   // function_declaration = "fn" ident "(" [param_list] ")" ["->" type] block
   StmtPtr parse_function_declaration() {
     expect(TokenKind::KwFn, "Expected 'fn'");
-    Identifier name = parse_identifier();
+    Identifier const name = parse_identifier();
     expect(TokenKind::LeftParen, "after function name");
 
     vector<Param> params;
     if (!match(TokenKind::RightParen)) {
       do {
-        Identifier paramName = parse_identifier();
+        Identifier const paramName = parse_identifier();
         expect(TokenKind::Colon, "after parameter name");
-        Type paramType = parse_type();
+        Type const paramType = parse_type();
         params.push_back({paramName, paramType});
       } while (accept(TokenKind::Comma));
     }
     expect(TokenKind::RightParen, "after parameters");
 
     // Default return type is unit
-    Type return_type = {Type::Kind::Unit, "unit"};
-    if (accept(TokenKind::Arrow))
+    Type return_type = {.kind = Type::Kind::Unit, .name = "unit"};
+    if (accept(TokenKind::Arrow)) {
       return_type = parse_type();
+    }
 
     auto body = parse_block();
     return Stmt::make(
@@ -406,9 +410,9 @@ private:
   // var_declaration = "let" ident ":" type "=" expression ";"
   StmtPtr parse_var_decl() {
     expect(TokenKind::KwLet);
-    Identifier name = parse_identifier();
+    Identifier const name = parse_identifier();
     expect(TokenKind::Colon, "after variable name");
-    Type type = parse_type();
+    Type const type = parse_type();
     expect(TokenKind::Assignment, "in variable declaration");
     auto init = parse_expression();
     expect(TokenKind::Semicolon, "after variable declaration");
@@ -431,7 +435,7 @@ private:
   // assignment_stmt = identifier "=" expression ";"
   StmtPtr parse_assignment_stmt() {
     // Lookahead(1) is '=' -> Assignment Statement
-    Identifier name = parse_identifier();
+    Identifier const name = parse_identifier();
     expect(TokenKind::Assignment, "in assignment");
     auto rhs = parse_expression();
     expect(TokenKind::Semicolon, "after assignment");
@@ -476,8 +480,9 @@ private:
         return parse_assignment_stmt();
       }
       // Expression Statement (mostly function calls)
-      if (match(TokenKind::LeftParen, 1))
+      if (match(TokenKind::LeftParen, 1)) {
         return parse_call_stmt();
+      }
     }
     throw error("expected statement");
   }
@@ -514,3 +519,5 @@ private:
 //    printAST(es->expr.get(), depth + 1);
 //  }
 //}
+
+} // namespace mini_compiler

@@ -1,22 +1,27 @@
 // MiniCompiler.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 //
 
+#include <exception>
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <iostream>
 #include <print>
-#include <sstream>
+#include <stdexcept>
 #include <string>
 
 #include "lexer.h"
 #include "parser.h"
 
+namespace {
+
 std::string read_file(const std::filesystem::path &path) {
   // 1. 打开流（使用 binary 模式可以避免在 Windows
   // 上因换行符转换导致的偏移错误）
   std::ifstream file(path, std::ios::in | std::ios::binary);
-  if (!file)
+  if (!file) {
     return "";
+  }
 
   // 2. 直接读取字节流
   auto size = std::filesystem::file_size(path);
@@ -26,8 +31,11 @@ std::string read_file(const std::filesystem::path &path) {
   return content;
 }
 
+} // namespace
+
 int main() {
-  string source = R"(
+  using namespace mini_compiler;
+  string const source = R"(
     let x: int = 123;
     fn foo(a: int, b: float) -> bool {
         let y: string = "hi\n";
@@ -73,7 +81,7 @@ int main() {
                    token.pos.colno, token_str);
     }
     Parser parser(tokens);
-    Program prog = parser.parse();
+    Program const prog = parser.parse();
     std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
 
     // std::cout << "AST Structure:\n";
