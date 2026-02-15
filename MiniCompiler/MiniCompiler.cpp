@@ -66,12 +66,12 @@ int main() {
     Lexer lexer(source);
     auto tokens = lexer.tokenize();
     for (const auto &token : tokens) {
-      std::string token_str = std::format("{:>10}", token.lexeme);
+      std::string token_str = std::format("{}", token.lexeme);
       if (auto token_kind_str = to_string(token.kind);
           token_kind_str != token.lexeme) {
-        token_str += std::format(" | ({})", token_kind_str);
+        token_str = std::format("{:<10} ({})", token.lexeme, token_kind_str);
       }
-      std::println(out_file, "{:>2}:{:>2} | {}", token.pos.lineno,
+      std::println(out_file, "{:>2}:{:>2}    {:>5}", token.pos.lineno,
                    token.pos.colno, token_str);
     }
     Parser parser(tokens);

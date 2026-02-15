@@ -160,12 +160,12 @@ struct Identifier {
 };
 
 struct Type {
-  enum class Kind { Int, Float, String, Bool } kind;
+  enum class Kind { Int, Float, String, Bool, Custom } kind;
   string_view name; // For custom types
 };
 
 struct LiteralExpr {
-  enum class Kind { Number, String, Bool } kind;
+  enum class Kind { Int, Float, String, Bool } kind;
   string_view value;
 };
 
@@ -288,9 +288,8 @@ private:
 
   Token expect(TokenKind kind, string_view msg = "") {
     if (!match(kind))
-      throw error("expected " + string(find_key_by_value(keywords, kind)) +
-                  ", got " + string(find_key_by_value(keywords, peek().kind)) +
-                  string(" ") + string(msg));
+      throw error(std::format("expected {}, got {} {}", string(to_string(kind)),
+                              string(to_string(peek().kind)), msg));
     return advance();
   }
 
@@ -305,30 +304,38 @@ private:
 
   // type = "int" | "float" | "String_view" | "bool"
   Type parse_type() {
-    auto kind = advance().kind;
-    switch (kind) {
-    case TokenKind::KwInt:
-      return {Type::Kind::Int, "int"};
-    case TokenKind::KwFloat:
-      return {Type::Kind::Float, "float"};
-    case TokenKind::KwString:
-      return {Type::Kind::String, "String"};
-    case TokenKind::KwBool:
-      return {Type::Kind::Bool, "bool"};
+    auto token = expect(TokenKind::Type);
+    std::optional<Type::Kind> kind;
+    if (token.lexeme == "int") {
+      kind = Type::Kind::Int;
     }
-    throw error("expected type");
+    if (token.lexeme == "float") {
+      kind = Type::Kind::Float;
+    }
+    if (token.lexeme == "string") {
+      kind = Type::Kind::String;
+    }
+    if (token.lexeme == "bool") {
+      kind = Type::Kind::Bool;
+    }
+    if (kind)
+      return {*kind, token.lexeme};
+    return {Type::Kind::Custom, token.lexeme}; // For user-defined types
   }
 
   LiteralExpr parse_literal() {
-    if (match(TokenKind::Number)) {
-      return {LiteralExpr::Kind::Number, advance().lexeme};
+    std::optional<LiteralExpr::Kind> kind;
+    if (match(TokenKind::IntLiteral)) {
+      kind = LiteralExpr::Kind::Int;
     }
-    if (match(TokenKind::String)) {
-      return {LiteralExpr::Kind::String, advance().lexeme};
+    if (match(TokenKind::StringLiteral)) {
+      kind = LiteralExpr::Kind::String;
     }
-    if (match(TokenKind::Bool)) {
-      return {LiteralExpr::Kind::Bool, advance().lexeme};
+    if (match(TokenKind::BoolLiteral)) {
+      kind = LiteralExpr::Kind::Bool;
     }
+    if (kind)
+      return {*kind, advance().lexeme};
     throw error("Expected literal in expression: " + string(peek().lexeme));
   }
 
@@ -339,16 +346,16 @@ private:
 
   // primary = identifier | literal | function_call | "(" expression ")"
   ExprPtr parse_primary_expression() {
-    if (accept(TokenKind::LParen)) {
+    if (accept(TokenKind::LeftParen)) {
       auto expr = parse_expression();
-      expect(TokenKind::RParen, "after expression");
+      expect(TokenKind::RightParen, "after expression");
       return expr;
     }
 
     // Identifier or Function Call
     if (match(TokenKind::Identifier)) {
       // function_call starts with Ident "(" ... ")"
-      if (match(TokenKind::LParen, 1)) {
+      if (match(TokenKind::LeftParen, 1)) {
         return parse_call_expression();
       }
       return Expr::make(parse_identifier());
@@ -360,14 +367,14 @@ private:
 
   ExprPtr parse_call_expression() {
     Identifier name = parse_identifier();
-    expect(TokenKind::LParen, "after function name");
+    expect(TokenKind::LeftParen, "after function name");
     vector<ExprPtr> args;
-    if (!match(TokenKind::RParen)) {
+    if (!match(TokenKind::RightParen)) {
       do {
         args.push_back(parse_expression());
       } while (accept(TokenKind::Comma));
     }
-    expect(TokenKind::RParen, "after arguments");
+    expect(TokenKind::RightParen, "after arguments");
     return Expr::make(CallExpr(name, std::move(args)));
   }
 
@@ -388,10 +395,10 @@ private:
   StmtPtr parse_function_declaration() {
     expect(TokenKind::KwFn, "Expected 'fn'");
     Identifier name = parse_identifier();
-    expect(TokenKind::LParen, "after function name");
+    expect(TokenKind::LeftParen, "after function name");
 
     vector<Param> params;
-    if (!match(TokenKind::RParen)) {
+    if (!match(TokenKind::RightParen)) {
       do {
         Identifier paramName = parse_identifier();
         expect(TokenKind::Colon, "after parameter name");
@@ -399,7 +406,7 @@ private:
         params.push_back({paramName, paramType});
       } while (accept(TokenKind::Comma));
     }
-    expect(TokenKind::RParen, "after parameters");
+    expect(TokenKind::RightParen, "after parameters");
 
     std::optional<Type> returnType;
     if (accept(TokenKind::Arrow))
@@ -416,7 +423,7 @@ private:
     Identifier name = parse_identifier();
     expect(TokenKind::Colon, "after variable name");
     Type type = parse_type();
-    expect(TokenKind::Assign, "in variable declaration");
+    expect(TokenKind::Assignment, "in variable declaration");
     auto init = parse_expression();
     expect(TokenKind::Semicolon, "after variable declaration");
     return Stmt::make(VarDecl(name, type, std::move(init)));
@@ -426,12 +433,12 @@ private:
 
   // block = "{" { stmt } "}"
   Block parse_block() {
-    expect(TokenKind::LBrace, "before function body");
+    expect(TokenKind::LeftBrace, "before function body");
     std::vector<StmtPtr> stmts;
-    while (!match(TokenKind::RBrace) && !match(TokenKind::Eof)) {
+    while (!match(TokenKind::RightBrace) && !match(TokenKind::Eof)) {
       stmts.push_back(parse_stmt());
     }
-    expect(TokenKind::RBrace, "after function body");
+    expect(TokenKind::RightBrace, "after function body");
     return {std::move(stmts)};
   }
 
@@ -439,7 +446,7 @@ private:
   StmtPtr parse_assignment_stmt() {
     // Lookahead(1) is '=' -> Assignment Statement
     Identifier name = parse_identifier();
-    expect(TokenKind::Assign, "in assignment");
+    expect(TokenKind::Assignment, "in assignment");
     auto rhs = parse_expression();
     expect(TokenKind::Semicolon, "after assignment");
     return Stmt::make(AssignStmt(name, std::move(rhs)));
@@ -477,11 +484,11 @@ private:
     if (match(TokenKind::Identifier)) {
       // 关键消歧义逻辑： Identifier 可能是 Assignment 或者是
       // FunctionCall(ExprStmt)
-      if (match(TokenKind::Assign, 1)) {
+      if (match(TokenKind::Assignment, 1)) {
         return parse_assignment_stmt();
       }
       // Expression Statement (mostly function calls)
-      if (match(TokenKind::LParen, 1))
+      if (match(TokenKind::LeftParen, 1))
         return parse_call_stmt();
     }
     throw error("expected statement");

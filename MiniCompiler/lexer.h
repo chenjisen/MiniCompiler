@@ -20,74 +20,107 @@ using std::vector;
 // 1. Token Definitions
 // ==========================================
 
+#define TOKEN_LIST(X)                                                          \
+  X(SlashEq, "/=", SlashEq)                                                    \
+  X(Slash, "/", Slash)                                                         \
+  X(LeftShiftEq, "<<=", LeftShiftEq)                                           \
+  X(LeftShift, "<<", LeftShift)                                                \
+  X(Spaceship, "Spaceship", Spaceship)                                         \
+  X(LessEq, "<=", LessEq)                                                      \
+  X(Less, "<", Less)                                                           \
+  X(RightShiftEq, ">>=", RightShiftEq)                                         \
+  X(RightShift, ">>", RightShift)                                              \
+  X(GreaterEq, ">=", GreaterEq)                                                \
+  X(Greater, ">", Greater)                                                     \
+  X(PlusPlus, "++", PlusPlus)                                                  \
+  X(PlusEq, "+=", PlusEq)                                                      \
+  X(Plus, "+", Plus)                                                           \
+  X(MinusMinus, "--", MinusMinus)                                              \
+  X(MinusEq, "-=", MinusEq)                                                    \
+  X(Arrow, "->", Arrow)                                                        \
+  X(Minus, "-", Minus)                                                         \
+  X(LogicalOrEq, "||=", LogicalOrEq)                                           \
+  X(LogicalOr, "||", LogicalOr)                                                \
+  X(PipeEq, "|=", PipeEq)                                                      \
+  X(Pipe, "|", Pipe)                                                           \
+  X(LogicalAndEq, "&&=", LogicalAndEq)                                         \
+  X(LogicalAnd, "&&", LogicalAnd)                                              \
+  X(MultiplyEq, "*=", MultiplyEq)                                              \
+  X(Multiply, "*", Multiply)                                                   \
+  X(ModuloEq, "%=", ModuloEq)                                                  \
+  X(Modulo, "%", Modulo)                                                       \
+  X(AmpersandEq, "&=", AmpersandEq)                                            \
+  X(Ampersand, "&", Ampersand)                                                 \
+  X(CaretEq, "^=", CaretEq)                                                    \
+  X(Caret, "^", Caret)                                                         \
+  X(TildeEq, "~=", TildeEq)                                                    \
+  X(Tilde, "~", Tilde)                                                         \
+  X(EqualComparison, "==", EqualComparison)                                    \
+  X(Assignment, "=", Assignment)                                               \
+  X(NotEqualComparison, "!=", NotEqualComparison)                              \
+  X(Not, "!", Not)                                                             \
+  X(LeftBrace, "{", LeftBrace)                                                 \
+  X(RightBrace, "}", RightBrace)                                               \
+  X(LeftParen, "(", LeftParen)                                                 \
+  X(RightParen, ")", RightParen)                                               \
+  X(LeftBracket, "[", LeftBracket)                                             \
+  X(RightBracket, "]", RightBracket)                                           \
+  X(Scope, "::", Scope)                                                        \
+  X(Colon, ":", Colon)                                                         \
+  X(Semicolon, ";", Semicolon)                                                 \
+  X(Comma, ",", Comma)                                                         \
+  X(Dot, ".", Dot)                                                             \
+  X(DotDot, "..", DotDot)                                                      \
+  X(Ellipsis, "...", Ellipsis)                                                 \
+  X(EllipsisLess, "..<", EllipsisLess)                                         \
+  X(EllipsisEqual, "..=", EllipsisEqual)                                       \
+  X(QuestionMark, "?", QuestionMark)                                           \
+  X(At, "@", At)                                                               \
+  X(Dollar, "$", Dollar)                                                       \
+  X(FloatLiteral, "Float Literal", Literal)                                    \
+  X(IntLiteral, "Int Literal", Literal)                                        \
+  X(StringLiteral, "String Literal", Literal)                                  \
+  X(CharLiteral, "Char Literal", Literal)                                      \
+  X(BoolLiteral, "Bool Literal", Literal)                                      \
+  X(KwLet, "Let", Keyword)                                                     \
+  X(KwFn, "Fn", Keyword)                                                       \
+  X(KwReturn, "Return", Keyword)                                               \
+  X(Type, "Type", Type)                                                        \
+  X(Identifier, "Identifier", Identifier)
+
 enum class TokenKind {
   Error,
 
-  // Keywords
-  KwLet,
-  KwFn,
-  KwReturn,
-  KwInt,
-  KwFloat,
-  KwString,
-  KwBool,
-  KwVoid,
+#define AS_ENUM(name, str, kind_class) name,
+  TOKEN_LIST(AS_ENUM)
+#undef AS_ENUM
 
-  // Identifiers
-  Identifier,
-
-  // Literals
-  Number,
-  String,
-  Bool,
-
-  Type,
-
-  // Delimiters
-  LParen,
-  RParen,
-  LBrace,
-  RBrace,
-
-  // Operators
-  Comma,
-  Colon,
-  Semicolon,
-  Assign,
-  Minus,
-  Arrow,
-
-  // Special
-  Eof
+      Eof,
+  None,
 };
 
-//// 1. 在一个头文件或宏定义中列出所有 Token
-// #d efine TOKEN_LIST(X) \
-//  X(Plus, "+") \
-//  X(Minus, "-") \
-//  X(Integer, "INT") \ X(Identifier, "ID")
-//
-//// 2. 自动生成枚举
-// enum class TokenKind {
-// #define AS_ENUM(kind, str) kind,
-//   TOKEN_LIST(AS_ENUM)
-// #undef AS_ENUM
-// };
-//
-//// 3. 自动生成映射函数
-// constexpr std::string_view to_string(TokenKind kind) {
-//   switch (kind) {
-// #d ef ine AS_CASE(name, str) \
-//  case TokenKind::name: \
-//    return str;
-//     TOKEN_LIST(AS_CASE)
-// #undef AS_CASE
-//   default:
-//     return "UNKNOWN";
-//   }
-// }
-//
-//
+bool is_keyword(string_view sv) {
+  return sv == "let" || sv == "fn" || sv == "return";
+}
+
+constexpr std::string_view to_string(TokenKind kind) {
+  switch (kind) {
+#define AS_CASE(name, str, kind_class)                                         \
+  case TokenKind::name:                                                        \
+    return str;
+    TOKEN_LIST(AS_CASE)
+#undef AS_CASE
+  case TokenKind::Error:
+    return "(ERROR)";
+  case TokenKind::Eof:
+    return "(EOF)";
+  case TokenKind::None:
+    return "(NONE)";
+  default:
+    return "(UNKNOWN)";
+  }
+}
+
 // struct TokenInfo {
 //   std::string_view name;
 //   int precedence;
@@ -138,28 +171,6 @@ struct Token {
   string_view lexeme;
   SourcePosition pos{};
 };
-
-static const std::unordered_map<string_view, TokenKind> keywords = {
-    {"let", TokenKind::KwLet},       {"fn", TokenKind::KwFn},
-    {"return", TokenKind::KwReturn}, {"int", TokenKind::KwInt},
-    {"float", TokenKind::KwFloat},   {"string", TokenKind::KwString},
-    {"bool", TokenKind::KwBool},     {"void", TokenKind::KwVoid},
-    {"true", TokenKind::Bool},       {"false", TokenKind::Bool}};
-
-std::optional<TokenKind> to_lexeme_type(string_view text) {
-  if (auto it = keywords.find(text); it != keywords.end())
-    return it->second;
-  return {};
-}
-
-string_view to_string(TokenKind type) {
-  for (const auto &[key, value] : keywords) {
-    if (value == type) {
-      return key;
-    }
-  }
-  return "";
-}
 
 // ==========================================
 // 2. Lexer
@@ -268,8 +279,7 @@ private:
     string_view text =
         source.substr(start_pos.index, pos.index - start_pos.index);
 
-    TokenKind kind = to_lexeme_type(text).value_or(TokenKind::Identifier);
-    return {kind, text, start_pos};
+    return {TokenKind::Identifier, text, start_pos};
   }
 
   Token lex_number() {
@@ -278,17 +288,21 @@ private:
     while (!is_at_end() && std::isdigit(peek()))
       advance();
 
+    TokenKind kind = TokenKind::None;
+
     // Check for float
     if (peek() == '.') {
+      kind = TokenKind::FloatLiteral;
       advance(); // Consume .
       if (std::isdigit(peek())) {
         while (std::isdigit(peek()))
           advance();
       }
+    } else {
+      kind = TokenKind::IntLiteral;
     }
 
-    return {TokenKind::Number,
-            source.substr(start_pos.index, pos.index - start_pos.index),
+    return {kind, source.substr(start_pos.index, pos.index - start_pos.index),
             start_pos};
   }
 
@@ -304,7 +318,7 @@ private:
         if (!is_at_end()) {
           advance(); // skip escaped char
         }
-        char next_c = peek();
+        // char next_c = peek();
         // TODO: escape
         continue;
       } else if (c == '\n') {
@@ -317,7 +331,7 @@ private:
         // 提取字符串内容，不包括开头和结尾的引号
         string_view content =
             source.substr(start_pos.index, pos.index - start_pos.index - 1);
-        return {TokenKind::String, content, start_pos};
+        return {TokenKind::StringLiteral, content, start_pos};
       } else {
         advance();
       }
@@ -327,36 +341,255 @@ private:
   }
 
   Token lex_symbol() {
-    SourcePosition start_pos = pos;
-    char c = advance();
-    switch (c) {
-    case '(':
-      return {TokenKind::LParen, "(", start_pos};
-    case ')':
-      return {TokenKind::RParen, ")", start_pos};
-    case '{':
-      return {TokenKind::LBrace, "{", start_pos};
-    case '}':
-      return {TokenKind::RBrace, "}", start_pos};
-    case ':':
-      return {TokenKind::Colon, ":", start_pos};
-    case ';':
-      return {TokenKind::Semicolon, ";", start_pos};
-    case ',':
-      return {TokenKind::Comma, ",", start_pos};
-    case '=':
-      return {TokenKind::Assign, "=", start_pos};
-    case '-':
-      if (peek() == '>') {
+
+    auto make_token = [&](TokenKind kind) {
+      SourcePosition start_pos = pos;
+      for (int i = 0; i < to_string(kind).size(); ++i) {
         advance();
-        return {TokenKind::Arrow, "->", start_pos};
       }
-      return {TokenKind::Minus, "-", start_pos};
+      string_view lexeme =
+          source.substr(start_pos.index, pos.index - start_pos.index);
+      return Token(kind, lexeme, start_pos);
+    };
+
+    char c = peek();
+    auto peek1 = peek(1);
+    auto peek2 = peek(2);
+
+    switch (c) {
+
+      // G     '/=' '/'
+    case '/':
+      if (peek1 == '=') {
+        return make_token(TokenKind::SlashEq);
+      } else {
+        return make_token(TokenKind::Slash);
+      }
+
+      // G     '<<=' '<<' '<=>' '<=' '<'
+      break;
+    case '<':
+      if (peek1 == '<') {
+        if (peek2 == '=') {
+          return make_token(TokenKind::LeftShiftEq);
+        } else {
+          return make_token(TokenKind::LeftShift);
+        }
+      } else if (peek1 == '=') {
+        if (peek2 == '>') {
+          return make_token(TokenKind::Spaceship);
+        } else {
+          return make_token(TokenKind::LessEq);
+        }
+      } else {
+        return make_token(TokenKind::Less);
+      }
+
+      // G     '>>=' '>>' '>=' '>'
+      break;
+    case '>':
+      if (peek1 == '>') {
+        if (peek2 == '=') {
+          return make_token(TokenKind::RightShiftEq);
+        } else {
+          return make_token(TokenKind::RightShift);
+        }
+      } else if (peek1 == '=') {
+        return make_token(TokenKind::GreaterEq);
+      } else {
+        return make_token(TokenKind::Greater);
+      }
+
+      // G     '++' '+=' '+'
+      break;
+    case '+':
+      if (peek1 == '+') {
+        return make_token(TokenKind::PlusPlus);
+      } else if (peek1 == '=') {
+        return make_token(TokenKind::PlusEq);
+      } else {
+        return make_token(TokenKind::Plus);
+      }
+
+      // G     '--' '-=' '->' '-'
+      break;
+    case '-':
+      if (peek1 == '-') {
+        return make_token(TokenKind::MinusMinus);
+      } else if (peek1 == '=') {
+        return make_token(TokenKind::MinusEq);
+      } else if (peek1 == '>') {
+        return make_token(TokenKind::Arrow);
+      } else {
+        return make_token(TokenKind::Minus);
+      }
+
+      // G     '||=' '||' '|=' '|'
+      break;
+    case '|':
+      if (peek1 == '|') {
+        if (peek2 == '=') {
+          return make_token(TokenKind::LogicalOrEq);
+        } else {
+          return make_token(TokenKind::LogicalOr);
+        }
+      } else if (peek1 == '=') {
+        return make_token(TokenKind::PipeEq);
+      } else {
+        return make_token(TokenKind::Pipe);
+      }
+
+      // G     '&&=' '&&' '&=' '&'
+      break;
+    case '&':
+      if (peek1 == '&') {
+        if (peek2 == '=') {
+          return make_token(TokenKind::LogicalAndEq);
+        } else {
+          return make_token(TokenKind::LogicalAnd);
+        }
+      } else if (peek1 == '=') {
+        return make_token(TokenKind::AmpersandEq);
+      } else {
+        return make_token(TokenKind::Ampersand);
+      }
+
+      //  Next, all the other operators that have a compound assignment form
+
+      // G     '*=' '*'
+      break;
+    case '*':
+      if (peek1 == '=') {
+        return make_token(TokenKind::MultiplyEq);
+      } else {
+        return make_token(TokenKind::Multiply);
+      }
+
+      // G     '%=' '%'
+      break;
+    case '%':
+      if (peek1 == '=') {
+        return make_token(TokenKind::ModuloEq);
+      } else {
+        return make_token(TokenKind::Modulo);
+      }
+
+      // G     '^=' '^'
+      break;
+    case '^':
+      if (peek1 == '=') {
+        return make_token(TokenKind::CaretEq);
+      } else {
+        return make_token(TokenKind::Caret);
+      }
+
+      // G     '~=' '~'
+      break;
+    case '~':
+      if (peek1 == '=') {
+        return make_token(TokenKind::TildeEq);
+      } else {
+        return make_token(TokenKind::Tilde);
+      }
+
+      // G     '==' '='
+      break;
+    case '=':
+      if (peek1 == '=') {
+        return make_token(TokenKind::EqualComparison);
+      } else {
+        return make_token(TokenKind::Assignment);
+      }
+
+      // G     '!=' '!'
+      break;
+    case '!':
+      if (peek1 == '=') {
+        return make_token(TokenKind::NotEqualComparison);
+      } else {
+        return make_token(TokenKind::Not);
+      }
+
+      // G
+      // G punctuator: one of
+      // G     '.' '..' '...' '..<' '..='
+      break;
+    case '.':
+      if (peek1 == '.' && peek2 == '.') {
+        return make_token(TokenKind::Ellipsis);
+      } else if (peek1 == '.' && peek2 == '<') {
+        return make_token(TokenKind::EllipsisLess);
+      } else if (peek1 == '.' && peek2 == '=') {
+        return make_token(TokenKind::EllipsisEqual);
+      } else if (peek1 == '.') {
+        return make_token(TokenKind::DotDot);
+      } else {
+        return make_token(TokenKind::Dot);
+      }
+
+      // G     '::' ':'
+      break;
+    case ':':
+      if (peek1 == ':') {
+        return make_token(TokenKind::Scope);
+      } else {
+        return make_token(TokenKind::Colon);
+      }
+
+      //  All the other single-character tokens
+
+      // G     '{' '}' '(' ')' '[' ']' ';' ',' '?' '$'
+      // G
+
+      break;
+    case '{':
+      return make_token(TokenKind::LeftBrace);
+
+      break;
+    case '}':
+      return make_token(TokenKind::RightBrace);
+
+      break;
+    case '(':
+      return make_token(TokenKind::LeftParen);
+
+      break;
+    case ')':
+      return make_token(TokenKind::RightParen);
+
+      break;
+    case '[':
+      return make_token(TokenKind::LeftBracket);
+
+      break;
+    case ']':
+      return make_token(TokenKind::RightBracket);
+
+      break;
+    case ';':
+      return make_token(TokenKind::Semicolon);
+
+      break;
+    case ',':
+      return make_token(TokenKind::Comma);
+
+      break;
+    case '?':
+      return make_token(TokenKind::QuestionMark);
+
+      break;
+    case '@':
+      return make_token(TokenKind::At);
+
+      break;
+    case '$':
+      return make_token(TokenKind::Dollar);
+      break;
     default:
       string_view sv(&c, 1);
       errors.push_back("Unexpected character: " + string(sv) + " at pos " +
-                       start_pos.to_string());
-      return {TokenKind::Error, std::string_view(&c, 1), start_pos};
+                       pos.to_string());
+      return {TokenKind::Error, std::string_view(&c, 1), pos};
     }
   }
 };
