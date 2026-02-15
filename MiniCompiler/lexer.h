@@ -85,7 +85,6 @@ using std::vector;
   X(KwLet, "Let", Keyword)                                                     \
   X(KwFn, "Fn", Keyword)                                                       \
   X(KwReturn, "Return", Keyword)                                               \
-  X(Type, "Type", Type)                                                        \
   X(Identifier, "Identifier", Identifier)
 
 enum class TokenKind {
@@ -278,7 +277,18 @@ private:
     }
     string_view text =
         source.substr(start_pos.index, pos.index - start_pos.index);
-
+    if (is_keyword(text)) {
+      if (text == "let") {
+        return {TokenKind::KwLet, text, start_pos};
+      }
+      if (text == "fn") {
+        return {TokenKind::KwFn, text, start_pos};
+      }
+      if (text == "return") {
+        return {TokenKind::KwReturn, text, start_pos};
+      }
+      throw std::runtime_error("Unknown keyword: " + string(text));
+    }
     return {TokenKind::Identifier, text, start_pos};
   }
 

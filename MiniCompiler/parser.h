@@ -160,7 +160,7 @@ struct Identifier {
 };
 
 struct Type {
-  enum class Kind { Int, Float, String, Bool, Custom } kind;
+  enum class Kind { Never, Unit, Bool, Int, Float, String, Custom } kind;
   string_view name; // For custom types
 };
 
@@ -177,7 +177,7 @@ struct CallExpr {
 struct VarDecl {
   Identifier name;
   Type type;
-  ExprPtr init;
+  std::optional<ExprPtr> init; // Optional
 };
 
 struct ReturnStmt {
@@ -205,7 +205,7 @@ struct Param {
 struct FunctionDecl {
   Identifier name;
   vector<Param> params;
-  std::optional<Type> return_type;
+  Type return_type;
   Block body;
 };
 
@@ -219,8 +219,8 @@ struct Expr {
 };
 
 struct Stmt {
-  using Node = std::variant<std::monostate, ReturnStmt, AssignStmt, CallStmt,
-                            VarDecl, FunctionDecl>;
+  using Node =
+      std::variant<ReturnStmt, AssignStmt, CallStmt, VarDecl, FunctionDecl>;
   Node node;
 
   template <typename T> static StmtPtr make(T &&value) {
@@ -231,16 +231,6 @@ struct Stmt {
 struct Program {
   vector<StmtPtr> declarations;
 };
-
-template <typename K, typename V>
-K find_key_by_value(const std::unordered_map<K, V> &map, const V &value) {
-  for (const auto &pair : map) {
-    if (pair.second == value) {
-      return pair.first;
-    }
-  }
-  throw std::invalid_argument("Value not found");
-}
 
 // ==========================================
 // 4. Parser
@@ -272,9 +262,9 @@ private:
     return peek(offset).kind == kind;
   }
 
-  Token advance(int offset = 0) {
-    Token token = peek(offset);
-    pos += offset;
+  Token advance() {
+    Token token = peek();
+    pos++;
     return token;
   }
 
@@ -302,9 +292,9 @@ private:
     return {expect(TokenKind::Identifier).lexeme};
   }
 
-  // type = "int" | "float" | "String_view" | "bool"
+  // type = "int" | "float" | "String" | "bool"
   Type parse_type() {
-    auto token = expect(TokenKind::Type);
+    auto token = expect(TokenKind::Identifier);
     std::optional<Type::Kind> kind;
     if (token.lexeme == "int") {
       kind = Type::Kind::Int;
@@ -327,6 +317,9 @@ private:
     std::optional<LiteralExpr::Kind> kind;
     if (match(TokenKind::IntLiteral)) {
       kind = LiteralExpr::Kind::Int;
+    }
+    if (match(TokenKind::FloatLiteral)) {
+      kind = LiteralExpr::Kind::Float;
     }
     if (match(TokenKind::StringLiteral)) {
       kind = LiteralExpr::Kind::String;
@@ -362,7 +355,7 @@ private:
     }
 
     LiteralExpr lit = parse_literal();
-    return Expr::make(Expr{Expr{lit}});
+    return Expr::make(lit);
   }
 
   ExprPtr parse_call_expression() {
@@ -408,13 +401,14 @@ private:
     }
     expect(TokenKind::RightParen, "after parameters");
 
-    std::optional<Type> returnType;
+    // Default return type is unit
+    Type return_type = {Type::Kind::Unit, "unit"};
     if (accept(TokenKind::Arrow))
-      returnType = parse_type();
+      return_type = parse_type();
 
     auto body = parse_block();
     return Stmt::make(
-        FunctionDecl(name, std::move(params), returnType, std::move(body)));
+        FunctionDecl(name, std::move(params), return_type, std::move(body)));
   }
 
   // var_declaration = "let" ident ":" type "=" expression ";"
@@ -457,7 +451,8 @@ private:
   StmtPtr parse_call_stmt() {
     auto call = parse_call_expression();
     expect(TokenKind::Semicolon, "after call statement");
-    return Stmt::make(CallStmt(std::move(std::get<CallExpr>(call->node))));
+    CallExpr callee = std::move(std::get<CallExpr>(call->node));
+    return Stmt::make(CallStmt(std::move(callee)));
   }
 
   // return_stmt = "return" [ expression ] ";"
@@ -504,7 +499,7 @@ private:
 //    std::cout << indent << "VarDecl: " << v->name << " (" << v->type << ")\n";
 //    printAST(v->init.get(), depth + 1);
 //  } else if (auto *f = dynamic_cast<const FunctionDecl *>(node)) {
-//    std::cout << indent << "FnDecl: " << f->name << " -> " << f->returnType
+//    std::cout << indent << "FnDecl: " << f->name << " -> " << f->return_type
 //              << "\n";
 //    printAST(f->body.get(), depth + 1);
 //  } else if (auto *b = dynamic_cast<const Block *>(node)) {
