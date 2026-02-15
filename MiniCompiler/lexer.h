@@ -25,7 +25,7 @@ using std::vector;
   X(Slash, "/", Slash)                                                         \
   X(LeftShiftEq, "<<=", LeftShiftEq)                                           \
   X(LeftShift, "<<", LeftShift)                                                \
-  X(Spaceship, "Spaceship", Spaceship)                                         \
+  X(Spaceship, "<=>", Spaceship)                                               \
   X(LessEq, "<=", LessEq)                                                      \
   X(Less, "<", Less)                                                           \
   X(RightShiftEq, ">>=", RightShiftEq)                                         \
@@ -317,7 +317,6 @@ private:
   }
 
   Token lex_string_literal() {
-
     advance(); // consume "
     SourcePosition start_pos = pos;
 
@@ -351,7 +350,6 @@ private:
   }
 
   Token lex_symbol() {
-
     auto make_token = [&](TokenKind kind) {
       SourcePosition start_pos = pos;
       for (int i = 0; i < to_string(kind).size(); ++i) {
@@ -367,7 +365,6 @@ private:
     auto peek2 = peek(2);
 
     switch (c) {
-
       // G     '/=' '/'
     case '/':
       if (peek1 == '=') {

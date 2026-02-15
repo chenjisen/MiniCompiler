@@ -1,16 +1,15 @@
 // MiniCompiler.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 //
 
-#include <iostream>
-
-#include "lexer.h"
-#include "parser.h"
-
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <print>
 #include <sstream>
 #include <string>
+
+#include "lexer.h"
+#include "parser.h"
 
 std::string read_file(const std::filesystem::path &path) {
   // 1. 打开流（使用 binary 模式可以避免在 Windows
@@ -28,7 +27,6 @@ std::string read_file(const std::filesystem::path &path) {
 }
 
 int main() {
-
   string source = R"(
     let x: int = 123;
     fn foo(a: int, b: float) -> bool {

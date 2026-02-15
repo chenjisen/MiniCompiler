@@ -23,9 +23,12 @@
 // 分开了，这很好：解析时只需看 `IDENT` 后续是 `=` 还是 `(`。
 // - `expression` 只允许 primary，所以像 `a = f(1, g(2));` 仍然是允许的（因为
 // `g(2)` 是 primary，作为参数 OK）。但 `a = (b = 1);`
-// 不可能被解析（没有赋值表达式），符合“禁止 a=b=c / 禁止赋值作为表达式”的目标。
-// 如果你希望我把 AST 再压缩（比如不用 `variant`、只保留必要字段）、或加入一个
-// pretty-printer/AST dump 方便调试，我也可以继续给一个更短版本。
+// 不可能被解析（没有赋值表达式），符合“禁止 a=b=c /
+// 禁止赋值作为表达式”的目标。
+// 如果你希望我把 AST 再压缩（比如不用
+// `variant`、只保留必要字段）、或加入一个
+// pretty-printer/AST dump
+// 方便调试，我也可以继续给一个更短版本。
 
 // 这是一个基于
 // C++23 标准编写的词法分析器（Lexer）和语法分析器（Parser）。
@@ -36,7 +39,8 @@
 // 2.  **Parser**: 递归下降分析法（Recursive Descent）。
 // 3.  **AST**: 使用简单的多态类结构表示语法树。
 // 4.  **消歧义**: 在解析 `Statement` 时，如果遇到标识符，会预读下一个 Token
-// 来区分是 **赋值语句** (`a = ...`) 还是 **表达式语句** (如函数调用 `foo();`)。
+// 来区分是 **赋值语句** (`a = ...`) 还是 **表达式语句**
+// (如函数调用 `foo();`)。
 // ### C++23 代码实现
 // ```###代码实现要点1.** 词法分析(Lexer) * * :
 // *使用 `std::map` 将字符串快速映射到关键字。
@@ -58,8 +62,11 @@
 // Visitor 模式，但这更简洁）。 4.* *C++ 23 特性 * * : *使用了
 // `string_view` 减少子串复制。 * 使用了 `std::map::contains` (C++ 20)。 *
 // 使用了 `std::unique_ptr` 和 `std::move` 确保资源所有权清晰。
-// 您可以直接复制这段代码，使用支持 C++ 20 / 23 的编译器（如 `g++ - std = c++ 23
-// main.cpp` 或 `clang++ - std = c++ 2b main.cpp`）编译运行。*
+// 您可以直接复制这段代码，使用支持 C++ 20 / 23 的编译器（如
+// `g++ - std = c++ 23 main.cpp`
+// 或
+// `clang++ - std = c++ 2b main.cpp`
+// ）编译运行。*
 
 // 下面是一个基于您最终文法的C++ 23
 // Lexer和Parser实现。代码设计简洁，使用了现代C++
@@ -108,7 +115,6 @@
 //
 //        这个实现完全遵循您定义的文法，可以解析符合语法的代码并构建抽象语法树。如果需要扩展功能（如添加运算符、控制流等），可以在现有基础上轻松扩展表达式系统。
 
-#include "lexer.h"
 #include <cctype>
 #include <cstdint>
 #include <cstdlib>
@@ -122,20 +128,6 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
-#include <variant>
-#include <vector>
-
-#include "parser.h"
-
-#include <cctype>
-#include <iostream>
-#include <map>
-#include <memory>
-#include <optional>
-#include <stdexcept>
-#include <string>
-#include <string_view>
-#include <unordered_map>
 #include <variant>
 #include <vector>
 
@@ -466,7 +458,8 @@ private:
     return Stmt::make(ReturnStmt(std::move(value)));
   }
 
-  // stmt = var_declaration | return_stmt | assignment_stmt | function_call_stmt
+  // stmt = var_declaration | return_stmt | assignment_stmt |
+  // function_call_stmt
   StmtPtr parse_stmt() {
     if (match(TokenKind::KwLet)) {
       return parse_var_decl();
@@ -496,7 +489,8 @@ private:
 // void printAST(const Node *node, int depth = 0) {
 //  string_view indent(depth * 2, ' ');
 //  if (auto *v = dynamic_cast<const VarDecl *>(node)) {
-//    std::cout << indent << "VarDecl: " << v->name << " (" << v->type << ")\n";
+//    std::cout << indent << "VarDecl: " << v->name << " (" << v->type <<
+//    ")\n";
 //    printAST(v->init.get(), depth + 1);
 //  } else if (auto *f = dynamic_cast<const FunctionDecl *>(node)) {
 //    std::cout << indent << "FnDecl: " << f->name << " -> " << f->return_type
