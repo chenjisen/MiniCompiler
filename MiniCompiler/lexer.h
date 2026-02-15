@@ -146,12 +146,27 @@ static const std::unordered_map<string_view, TokenKind> keywords = {
     {"bool", TokenKind::KwBool},     {"void", TokenKind::KwVoid},
     {"true", TokenKind::Bool},       {"false", TokenKind::Bool}};
 
+std::optional<TokenKind> to_lexeme_type(string_view text) {
+  if (auto it = keywords.find(text); it != keywords.end())
+    return it->second;
+  return {};
+}
+
+string_view to_string(TokenKind type) {
+  for (const auto &[key, value] : keywords) {
+    if (value == type) {
+      return key;
+    }
+  }
+  return "";
+}
+
 // ==========================================
 // 2. Lexer
 // ==========================================
 class Lexer {
 public:
-  explicit Lexer(string src) : source(std::move(src)) {}
+  explicit Lexer(string_view src) : source(src) {}
 
   std::vector<Token> tokenize() {
     std::vector<Token> tokens;
@@ -169,7 +184,7 @@ public:
   }
 
 private:
-  string source;
+  string_view source;
   SourcePosition pos{};
 
   std::vector<std::string> errors;
@@ -244,13 +259,14 @@ private:
 
   Token lex_identifier() {
     SourcePosition start_pos = pos;
-    while (!is_at_end() && is_ident_part(peek()))
+    while (!is_at_end() && is_ident_part(peek())) {
       advance();
+    }
     string_view text =
         source.substr(start_pos.index, pos.index - start_pos.index);
-    if (auto it = keywords.find(text); it != keywords.end())
-      return {it->second, text, pos};
-    return {TokenKind::Identifier, text, pos};
+
+    TokenKind kind = to_lexeme_type(text).value_or(TokenKind::Identifier);
+    return {kind, text, start_pos};
   }
 
   Token lex_number() {
@@ -269,7 +285,8 @@ private:
     }
 
     return {TokenKind::Number,
-            source.substr(start_pos.index, pos.index - start_pos.index), pos};
+            source.substr(start_pos.index, pos.index - start_pos.index),
+            start_pos};
   }
 
   Token lex_string_literal() {
@@ -297,13 +314,13 @@ private:
         // 提取字符串内容，不包括开头和结尾的引号
         string_view content =
             source.substr(start_pos.index, pos.index - start_pos.index - 1);
-        return {TokenKind::String, content, pos};
+        return {TokenKind::String, content, start_pos};
       } else {
         advance();
       }
     }
     errors.push_back("Unterminated string");
-    return {TokenKind::String, "", pos};
+    return {TokenKind::String, "", start_pos};
   }
 
   Token lex_symbol() {

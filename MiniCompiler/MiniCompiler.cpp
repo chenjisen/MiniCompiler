@@ -8,6 +8,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <print>
 #include <sstream>
 #include <string>
 
@@ -27,8 +28,6 @@ std::string read_file(const std::filesystem::path &path) {
 }
 
 int main() {
-
-  std::cout << "Hello World!\n";
 
   string source1 = R"(
       let x: int = 123;
@@ -66,9 +65,22 @@ int main() {
     )";
 
   try {
-    for (auto source : {source1, source2, source3}) {
-      Lexer lexer(std::move(source));
+    std::map<string, string> sources = {
+        {"s1", source1}, {"s2", source2}, {"s3", source3}};
+    for (const auto &[name, source] : sources) {
+      std::ofstream out_file(std::format("{}_out.txt", name),
+                             std::ios::out | std::ios::binary);
+      if (!out_file) {
+        std::cerr << "Failed to open output file for " << name << "\n";
+        continue;
+      }
+
+      Lexer lexer(source);
       auto tokens = lexer.tokenize();
+      for (const auto &token : tokens) {
+        std::println(out_file, "    {} ({}, {})", token.lexeme,
+                     token.pos.to_string(), to_string(token.kind));
+      }
       Parser parser(tokens);
       Program prog = parser.parse();
       std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
