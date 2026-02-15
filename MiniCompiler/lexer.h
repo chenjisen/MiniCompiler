@@ -177,7 +177,10 @@ public:
     }
     tokens.push_back({TokenKind::Eof, "", pos});
     if (!errors.empty()) {
-      throw std::runtime_error("Lex error：\n" + errors.front());
+      std::string msg = "Lex errors:\n";
+      for (const auto &e : errors)
+        msg += e + "\n";
+      throw std::runtime_error(msg);
     }
 
     return tokens;
@@ -320,39 +323,40 @@ private:
       }
     }
     errors.push_back("Unterminated string");
-    return {TokenKind::String, "", start_pos};
+    return {TokenKind::Error, "", start_pos};
   }
 
   Token lex_symbol() {
+    SourcePosition start_pos = pos;
     char c = advance();
     switch (c) {
     case '(':
-      return {TokenKind::LParen, "(", pos};
+      return {TokenKind::LParen, "(", start_pos};
     case ')':
-      return {TokenKind::RParen, ")", pos};
+      return {TokenKind::RParen, ")", start_pos};
     case '{':
-      return {TokenKind::LBrace, "{", pos};
+      return {TokenKind::LBrace, "{", start_pos};
     case '}':
-      return {TokenKind::RBrace, "}", pos};
+      return {TokenKind::RBrace, "}", start_pos};
     case ':':
-      return {TokenKind::Colon, ":", pos};
+      return {TokenKind::Colon, ":", start_pos};
     case ';':
-      return {TokenKind::Semicolon, ";", pos};
+      return {TokenKind::Semicolon, ";", start_pos};
     case ',':
-      return {TokenKind::Comma, ",", pos};
+      return {TokenKind::Comma, ",", start_pos};
     case '=':
-      return {TokenKind::Assign, "=", pos};
+      return {TokenKind::Assign, "=", start_pos};
     case '-':
       if (peek() == '>') {
         advance();
-        return {TokenKind::Arrow, "->", pos};
+        return {TokenKind::Arrow, "->", start_pos};
       }
-      return {TokenKind::Minus, "-", pos};
+      return {TokenKind::Minus, "-", start_pos};
     default:
       string_view sv(&c, 1);
       errors.push_back("Unexpected character: " + string(sv) + " at pos " +
-                       pos.to_string());
-      return {TokenKind::Error, sv, pos};
+                       start_pos.to_string());
+      return {TokenKind::Error, std::string_view(&c, 1), start_pos};
     }
   }
 };

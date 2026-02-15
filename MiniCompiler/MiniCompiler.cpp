@@ -29,62 +29,54 @@ std::string read_file(const std::filesystem::path &path) {
 
 int main() {
 
-  string source1 = R"(
-      let x: int = 123;
-      fn foo(a: int, b: float) -> bool {
-          let y: string_view = "hi\n";
-          x = 1;
-          print(y);
-          return true;
-      }
-    )";
+  string source = R"(
+    let x: int = 123;
+    fn foo(a: int, b: float) -> bool {
+        let y: string = "hi\n";
+        x = 1;
+        print(y);
+        return true;
+    }
+    fn add(a: int, b: int) -> int {
+         return a; // simplified
+    }
 
-  string source2 =
-      R"(
-            let x: int = 10;
-            fn add(a: int, b: int) -> int {
-                return a; // simplified
-            }
-            fn main() {
-                x = add(x, 20);
-                print("Done");
-            }
-)";
-  string source3 = R"(
-        let count: int = 0;
+    let count: int = 0;
+    fn increment(amount: int) -> int {
+        // count = count + amount;
+        return count;  // simplified
+    }
 
-        fn increment(amount: int) -> int {
-            count = count + amount;
-            return count;
-        }
-
-        fn main() {
-            let result: int = increment(5);
-            print("Result: ", result);
-        }
+    fn main() {
+        foo(10, 3.14);
+        x = add(x, 20);
+        print("x: ", x);
+        let result: int = increment(5);
+        print("Result: ", result);
+        print("Done");
+    }
     )";
 
   try {
-    std::map<string, string> sources = {
-        {"s1", source1}, {"s2", source2}, {"s3", source3}};
-    for (const auto &[name, source] : sources) {
-      std::ofstream out_file(std::format("{}_out.txt", name),
-                             std::ios::out | std::ios::binary);
-      if (!out_file) {
-        std::cerr << "Failed to open output file for " << name << "\n";
-        continue;
-      }
-
-      Lexer lexer(source);
-      auto tokens = lexer.tokenize();
-      for (const auto &token : tokens) {
-        std::println(out_file, "    {} ({}, {})", token.lexeme,
-                     token.pos.to_string(), to_string(token.kind));
-      }
-      Parser parser(tokens);
-      Program prog = parser.parse();
-      std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
+    std::ofstream out_file("out\\lex.txt", std::ios::out | std::ios::binary);
+    if (!out_file) {
+      throw std::runtime_error("Failed to open output file");
     }
+
+    Lexer lexer(source);
+    auto tokens = lexer.tokenize();
+    for (const auto &token : tokens) {
+      std::string token_str = std::format("{:>10}", token.lexeme);
+      if (auto token_kind_str = to_string(token.kind);
+          token_kind_str != token.lexeme) {
+        token_str += std::format(" | ({})", token_kind_str);
+      }
+      std::println(out_file, "{:>2}:{:>2} | {}", token.pos.lineno,
+                   token.pos.colno, token_str);
+    }
+    Parser parser(tokens);
+    Program prog = parser.parse();
+    std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
 
     // std::cout << "AST Structure:\n";
     // for (const auto &decl : prog.declarations) {
