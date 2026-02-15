@@ -6,13 +6,31 @@
 #include "lexer.h"
 #include "parser.h"
 
+#include <filesystem>
+#include <fstream>
+#include <sstream>
+#include <string>
 
+std::string read_file(const std::filesystem::path &path) {
+  // 1. 打开流（使用 binary 模式可以避免在 Windows
+  // 上因换行符转换导致的偏移错误）
+  std::ifstream file(path, std::ios::in | std::ios::binary);
+  if (!file)
+    return "";
+
+  // 2. 直接读取字节流
+  auto size = std::filesystem::file_size(path);
+  std::string content(size, '\0');
+  file.read(content.data(), size);
+
+  return content;
+}
 
 int main() {
 
-	std::cout << "Hello World!\n";
+  std::cout << "Hello World!\n";
 
-	string source1 = R"(
+  string source1 = R"(
       let x: int = 123;
       fn foo(a: int, b: float) -> bool {
           let y: string_view = "hi\n";
@@ -22,8 +40,8 @@ int main() {
       }
     )";
 
-	string source2 =
-		R"(
+  string source2 =
+      R"(
             let x: int = 10;
             fn add(a: int, b: int) -> int {
                 return a; // simplified
@@ -33,7 +51,7 @@ int main() {
                 print("Done");
             }
 )";
-	string source3 = R"(
+  string source3 = R"(
         let count: int = 0;
 
         fn increment(amount: int) -> int {
@@ -47,37 +65,35 @@ int main() {
         }
     )";
 
-	try {
-		for (auto source : { source1, source2, source3 }) {
-			Lexer lexer(std::move(source));
-			auto tokens = lexer.tokenize();
-			Parser parser(tokens);
-			Program prog = parser.parse();
-			std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
-		}
+  try {
+    for (auto source : {source1, source2, source3}) {
+      Lexer lexer(std::move(source));
+      auto tokens = lexer.tokenize();
+      Parser parser(tokens);
+      Program prog = parser.parse();
+      std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
+    }
 
-		// std::cout << "AST Structure:\n";
-		// for (const auto &decl : prog.declarations) {
-		//   printAST(decl.get());
-		// }
-	}
-	catch (const std::exception& e) {
-		std::cerr << "Error: " << e.what() << "\n";
-		return 1;
-	}
+    // std::cout << "AST Structure:\n";
+    // for (const auto &decl : prog.declarations) {
+    //   printAST(decl.get());
+    // }
+  } catch (const std::exception &e) {
+    std::cerr << "Error: " << e.what() << "\n";
+    return 1;
+  }
 
-	return 0;
+  return 0;
 }
-
-
 
 // 运行程序: Ctrl + F5 或调试 >“开始执行(不调试)”菜单
 // 调试程序: F5 或调试 >“开始调试”菜单
 
-// 入门使用技巧: 
+// 入门使用技巧:
 //   1. 使用解决方案资源管理器窗口添加/管理文件
 //   2. 使用团队资源管理器窗口连接到源代码管理
 //   3. 使用输出窗口查看生成输出和其他消息
 //   4. 使用错误列表窗口查看错误
-//   5. 转到“项目”>“添加新项”以创建新的代码文件，或转到“项目”>“添加现有项”以将现有代码文件添加到项目
+//   5.
+//   转到“项目”>“添加新项”以创建新的代码文件，或转到“项目”>“添加现有项”以将现有代码文件添加到项目
 //   6. 将来，若要再次打开此项目，请转到“文件”>“打开”>“项目”并选择 .sln 文件

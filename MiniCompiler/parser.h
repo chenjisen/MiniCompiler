@@ -232,10 +232,6 @@ struct Program {
   vector<StmtPtr> declarations;
 };
 
-// ==========================================
-// 4. Parser
-// ==========================================
-
 template <typename K, typename V>
 K find_key_by_value(const std::unordered_map<K, V> &map, const V &value) {
   for (const auto &pair : map) {
@@ -245,6 +241,10 @@ K find_key_by_value(const std::unordered_map<K, V> &map, const V &value) {
   }
   throw std::invalid_argument("Value not found");
 }
+
+// ==========================================
+// 4. Parser
+// ==========================================
 
 class Parser {
 public:
@@ -296,7 +296,7 @@ private:
 
   std::runtime_error error(string_view msg) const {
     return std::runtime_error(string(msg) + " at pos " +
-                              std::to_string(peek().pos));
+                              peek().pos.to_string());
   }
 
   Identifier parse_identifier() {

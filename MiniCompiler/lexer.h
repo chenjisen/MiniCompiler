@@ -21,6 +21,8 @@ using std::vector;
 // ==========================================
 
 enum class TokenKind {
+  Error,
+
   // Keywords
   KwLet,
   KwFn,
@@ -52,17 +54,89 @@ enum class TokenKind {
   Colon,
   Semicolon,
   Assign,
+  Minus,
   Arrow,
 
   // Special
   Eof
 };
 
+//// 1. 在一个头文件或宏定义中列出所有 Token
+// #d efine TOKEN_LIST(X) \
+//  X(Plus, "+") \
+//  X(Minus, "-") \
+//  X(Integer, "INT") \ X(Identifier, "ID")
+//
+//// 2. 自动生成枚举
+// enum class TokenKind {
+// #define AS_ENUM(kind, str) kind,
+//   TOKEN_LIST(AS_ENUM)
+// #undef AS_ENUM
+// };
+//
+//// 3. 自动生成映射函数
+// constexpr std::string_view to_string(TokenKind kind) {
+//   switch (kind) {
+// #d ef ine AS_CASE(name, str) \
+//  case TokenKind::name: \
+//    return str;
+//     TOKEN_LIST(AS_CASE)
+// #undef AS_CASE
+//   default:
+//     return "UNKNOWN";
+//   }
+// }
+//
+//
+// struct TokenInfo {
+//   std::string_view name;
+//   int precedence;
+//   bool right_associative;
+// };
+//
+// class TokenUtils {
+// public:
+//   // 静态映射表
+//   static constexpr TokenInfo get_info(TokenKind kind) {
+//     switch (kind) {
+// #d ef ine DEFINE_CASE(kind, str, prec, assoc) \
+//  case TokenKind::kind: \
+//    return {str, prec, assoc == 1};
+//       TOKEN_LIST(DEFINE_CASE)
+// #undef DEFINE_CASE
+//     default:
+//       return {"UNKNOWN", 0, false};
+//     }
+//   }
+//
+//   // 获取优先级（用于运算符爬行法/普拉特解析法）
+//   static constexpr int precedence(TokenKind kind) {
+//     return get_info(kind).precedence;
+//   }
+// };
+
+using lineno_t = int32_t;
+using colno_t = int32_t;
+using index_t = int32_t;
+
+struct SourcePosition {
+  lineno_t lineno = 1; // one-based offset into program source
+  colno_t colno = 1;   // one-based offset into line
+  index_t index = 0;
+
+  SourcePosition() = default;
+  SourcePosition(lineno_t l, colno_t c, index_t i)
+      : lineno{l}, colno{c}, index(i) {}
+  auto operator<=>(SourcePosition const &) const = default;
+  auto to_string() const -> std::string {
+    return std::format("({}, {}) i={}", lineno, colno, index);
+  }
+};
+
 struct Token {
   TokenKind kind{};
   string_view lexeme;
-  int line{};
-  int pos{};
+  SourcePosition pos{};
 };
 
 static const std::unordered_map<string_view, TokenKind> keywords = {
@@ -77,28 +151,34 @@ static const std::unordered_map<string_view, TokenKind> keywords = {
 // ==========================================
 class Lexer {
 public:
-  explicit Lexer(string src) : source(std::move(src)), pos(0), line(1) {}
+  explicit Lexer(string src) : source(std::move(src)) {}
 
   std::vector<Token> tokenize() {
     std::vector<Token> tokens;
     while (!is_at_end()) {
-      tokens.push_back(next_token());
+      Token tok = next_token();
+      if (tok.kind != TokenKind::Error) // 忽略错误 token 或保留特殊 token
+        tokens.emplace_back(std::move(tok));
     }
+    tokens.push_back({TokenKind::Eof, "", pos});
+    if (!errors.empty()) {
+      throw std::runtime_error("Lex error：\n" + errors.front());
+    }
+
     return tokens;
   }
 
 private:
   string source;
-  int start = 0;
-  int pos = 0;
-  int line = 1;
+  SourcePosition pos{};
+
+  std::vector<std::string> errors;
 
   Token next_token() {
     skip_whitespace();
-    start = pos;
-
-    if (is_at_end())
-      return {TokenKind::Eof, "", line};
+    if (is_at_end()) {
+      return {TokenKind::Eof, "", pos};
+    }
 
     char c = peek();
 
@@ -118,13 +198,13 @@ private:
     return lex_symbol();
   }
 
-  bool is_at_end() const { return pos >= source.size(); }
+  bool is_at_end() const { return pos.index >= source.size(); }
 
   static bool is_ident_start(char c) { return std::isalpha(c) || c == '_'; }
   static bool is_ident_part(char c) { return std::isalnum(c) || c == '_'; }
 
   char peek(int offset = 0) const {
-    int p = pos + offset;
+    int p = pos.index + offset;
     if (p >= source.size())
       return '\0';
     return source[p];
@@ -133,102 +213,129 @@ private:
   char advance() {
     if (is_at_end())
       return '\0';
-    return source[pos++];
+    pos.colno++;
+    return source[pos.index++];
   }
 
   void skip_whitespace() {
     while (!is_at_end()) {
       char c = peek();
       if (std::isspace(c)) {
-        if (c == '\n')
-          line++;
+        if (c == '\n') {
+          pos.lineno++;
+          pos.colno = 0;
+        }
         advance();
       } else if (c == '/') {
-        if (advance() == '/') {
+        if (peek(1) == '/') {
           // line comment //
-          while (peek() != '\n' && !is_at_end())
+          advance();
+          advance(); // consume '//'
+          while (!is_at_end() && peek() != '\n')
             advance();
-          line++;
         } else {
-          return;
+          break;
         }
       } else {
-        return;
+        break;
       }
     }
   }
 
   Token lex_identifier() {
-    int start = pos;
-    while (!is_at_end() && (is_ident_part(peek())))
+    SourcePosition start_pos = pos;
+    while (!is_at_end() && is_ident_part(peek()))
       advance();
-    string_view text = source.substr(start, pos - start);
-    if (keywords.contains(text)) {
-      return {keywords.at(text), text, line};
-    }
-    return {TokenKind::Identifier, text, line};
+    string_view text =
+        source.substr(start_pos.index, pos.index - start_pos.index);
+    if (auto it = keywords.find(text); it != keywords.end())
+      return {it->second, text, pos};
+    return {TokenKind::Identifier, text, pos};
   }
 
   Token lex_number() {
-    int start = pos;
+    SourcePosition start_pos = pos;
+
     while (!is_at_end() && std::isdigit(peek()))
       advance();
 
     // Check for float
-    if (peek() == '.' && std::isdigit(peek(1))) {
+    if (peek() == '.') {
       advance(); // Consume .
-      while (std::isdigit(peek()))
-        advance();
+      if (std::isdigit(peek())) {
+        while (std::isdigit(peek()))
+          advance();
+      }
     }
 
-    return {TokenKind::Number, source.substr(start, pos - start), line};
+    return {TokenKind::Number,
+            source.substr(start_pos.index, pos.index - start_pos.index), pos};
   }
 
   Token lex_string_literal() {
-    advance(); // "
-    int start = pos;
-    while (!is_at_end() && peek() != '"') {
-      if (peek() == '\n') {
-        throw std::runtime_error("newline in string literal");
-      }
-      if (peek() == '\\')
-        advance(); // skip escape
-      advance();
-    }
 
-    if (is_at_end()) {
-      throw std::runtime_error("Unterminated string at line " +
-                               std::to_string(line));
+    advance(); // consume "
+    SourcePosition start_pos = pos;
+
+    while (!is_at_end()) {
+      char c = peek();
+      if (c == '\\') {
+        advance(); // skip escape
+        if (!is_at_end()) {
+          advance(); // skip escaped char
+        }
+        char next_c = peek();
+        // TODO: escape
+        continue;
+      } else if (c == '\n') {
+        SourcePosition err_pos = pos; // 记录错误位置
+        advance();                    // 消费换行符
+        errors.push_back("New line in string");
+        return {TokenKind::Error, "", err_pos};
+      } else if (c == '"') {
+        advance(); // 消费闭引号
+        // 提取字符串内容，不包括开头和结尾的引号
+        string_view content =
+            source.substr(start_pos.index, pos.index - start_pos.index - 1);
+        return {TokenKind::String, content, pos};
+      } else {
+        advance();
+      }
     }
-    advance(); // Closing "
-    return {TokenKind::String, source.substr(start + 1, pos - start - 2), line};
+    errors.push_back("Unterminated string");
+    return {TokenKind::String, "", pos};
   }
 
   Token lex_symbol() {
     char c = advance();
     switch (c) {
     case '(':
-      return {TokenKind::LParen, "(", line};
+      return {TokenKind::LParen, "(", pos};
     case ')':
-      return {TokenKind::RParen, ")", line};
+      return {TokenKind::RParen, ")", pos};
     case '{':
-      return {TokenKind::LBrace, "{", line};
+      return {TokenKind::LBrace, "{", pos};
     case '}':
-      return {TokenKind::RBrace, "}", line};
+      return {TokenKind::RBrace, "}", pos};
     case ':':
-      return {TokenKind::Colon, ":", line};
+      return {TokenKind::Colon, ":", pos};
     case ';':
-      return {TokenKind::Semicolon, ";", line};
+      return {TokenKind::Semicolon, ";", pos};
     case ',':
-      return {TokenKind::Comma, ",", line};
+      return {TokenKind::Comma, ",", pos};
     case '=':
-      return {TokenKind::Assign, "=", line};
+      return {TokenKind::Assign, "=", pos};
     case '-':
-      if (advance() == '>') {
-        return {TokenKind::Arrow, "->", line};
+      if (peek() == '>') {
+        advance();
+        return {TokenKind::Arrow, "->", pos};
       }
+      return {TokenKind::Minus, "-", pos};
+    default:
+      string_view sv(&c, 1);
+      errors.push_back("Unexpected character: " + string(sv) + " at pos " +
+                       pos.to_string());
+      return {TokenKind::Error, sv, pos};
     }
-    throw std::runtime_error("Unexpected character: " + string(1, c) +
-                             " at pos " + std::to_string(pos));
   }
 };

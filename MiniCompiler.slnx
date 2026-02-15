@@ -3,5 +3,5 @@
     <Platform Name="x64" />
     <Platform Name="x86" />
   </Configurations>
-  <Project Path="MiniCompiler/MiniCompiler.vcxproj" />
+  <Project Path="MiniCompiler/MiniCompiler.vcxproj" Id="2d57fcf0-0cf8-480c-8088-e3f984631508" />
 </Solution>
