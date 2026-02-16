@@ -116,6 +116,7 @@
 //        这个实现完全遵循您定义的文法，可以解析符合语法的代码并构建抽象语法树。如果需要扩展功能（如添加运算符、控制流等），可以在现有基础上轻松扩展表达式系统。
 
 #include <cctype>
+#include <cstdint>
 #include <cstdlib>
 #include <format>
 #include <memory>
@@ -131,6 +132,9 @@
 
 namespace mini_compiler {
 
+using std::format;
+using std::optional;
+using std::runtime_error;
 using std::string;
 using std::string_view;
 using std::vector;
@@ -149,13 +153,15 @@ struct Identifier {
   string_view name;
 };
 
+enum class BuiltInType : uint8_t { Never, Unit, Bool, Int, Float, String };
+
 struct Type {
-  enum class Kind { Never, Unit, Bool, Int, Float, String, Custom } kind;
-  string_view name; // For custom types
+  std::optional<BuiltInType> built_in_type; // For built-in types
+  string_view name;                         // For custom types
 };
 
 struct LiteralExpr {
-  enum class Kind { Int, Float, String, Bool } kind;
+  BuiltInType type;
   string_view value;
 };
 
@@ -167,11 +173,11 @@ struct CallExpr {
 struct VarDecl {
   Identifier name;
   Type type;
-  std::optional<ExprPtr> init; // Optional
+  optional<ExprPtr> init; // Optional
 };
 
 struct ReturnStmt {
-  std::optional<ExprPtr> value; // Optional
+  optional<ExprPtr> value; // Optional
 };
 
 struct AssignStmt {
@@ -228,7 +234,7 @@ struct Program {
 
 class Parser {
 public:
-  explicit Parser(std::vector<Token> tokens) : tokens(std::move(tokens)) {}
+  explicit Parser(vector<Token> tokens) : tokens(std::move(tokens)) {}
 
   Program parse() {
     Program program;
@@ -239,14 +245,20 @@ public:
   }
 
 private:
-  std::vector<Token> tokens;
-  int pos = 0;
+  vector<Token> tokens;
+  index_t pos = 0;
 
-  const Token &peek(int offset = 0) const {
-    if (pos + offset >= tokens.size()) {
+  const Token &peek(index_t offset = 0) const {
+    if (offset < 0) {
+      throw error("Negative lookahead not supported");
+    }
+    if (pos < 0) {
+      throw error("Negative position not supported");
+    }
+    if (pos + offset >= std::ssize(tokens)) {
       return tokens.back();
     }
-    return tokens[pos + offset];
+    return tokens[static_cast<size_t>(pos) + offset];
   }
 
   bool match(TokenKind kind, int offset = 0) const {
@@ -269,15 +281,14 @@ private:
 
   Token expect(TokenKind kind, string_view msg = "") {
     if (!match(kind)) {
-      throw error(std::format("expected {}, got {} {}", string(to_string(kind)),
-                              string(to_string(peek().kind)), msg));
+      throw error(format("expected {}, got {} {}", string(to_string(kind)),
+                         string(to_string(peek().kind)), msg));
     }
     return advance();
   }
 
-  std::runtime_error error(string_view msg) const {
-    return std::runtime_error(string(msg) + " at pos " +
-                              peek().pos.to_string());
+  runtime_error error(string_view msg) const {
+    return runtime_error(string(msg) + " at pos " + peek().pos.to_string());
   }
 
   Identifier parse_identifier() {
@@ -287,42 +298,38 @@ private:
   // type = "int" | "float" | "String" | "bool"
   Type parse_type() {
     auto token = expect(TokenKind::Identifier);
-    std::optional<Type::Kind> kind;
+    optional<BuiltInType> type;
     if (token.lexeme == "int") {
-      kind = Type::Kind::Int;
+      type = BuiltInType::Int;
     }
     if (token.lexeme == "float") {
-      kind = Type::Kind::Float;
+      type = BuiltInType::Float;
     }
     if (token.lexeme == "string") {
-      kind = Type::Kind::String;
+      type = BuiltInType::String;
     }
     if (token.lexeme == "bool") {
-      kind = Type::Kind::Bool;
+      type = BuiltInType::Bool;
     }
-    if (kind) {
-      return {.kind = *kind, .name = token.lexeme};
-    }
-    return {.kind = Type::Kind::Custom,
-            .name = token.lexeme}; // For user-defined types
+    return {.built_in_type = type, .name = token.lexeme};
   }
 
   LiteralExpr parse_literal() {
-    std::optional<LiteralExpr::Kind> kind;
+    optional<BuiltInType> type;
     if (match(TokenKind::IntLiteral)) {
-      kind = LiteralExpr::Kind::Int;
+      type = BuiltInType::Int;
     }
     if (match(TokenKind::FloatLiteral)) {
-      kind = LiteralExpr::Kind::Float;
+      type = BuiltInType::Float;
     }
     if (match(TokenKind::StringLiteral)) {
-      kind = LiteralExpr::Kind::String;
+      type = BuiltInType::String;
     }
     if (match(TokenKind::BoolLiteral)) {
-      kind = LiteralExpr::Kind::Bool;
+      type = BuiltInType::Bool;
     }
-    if (kind) {
-      return {.kind = *kind, .value = advance().lexeme};
+    if (type) {
+      return {.type = *type, .value = advance().lexeme};
     }
     throw error("Expected literal in expression: " + string(peek().lexeme));
   }
@@ -397,7 +404,7 @@ private:
     expect(TokenKind::RightParen, "after parameters");
 
     // Default return type is unit
-    Type return_type = {.kind = Type::Kind::Unit, .name = "unit"};
+    Type return_type = {.built_in_type = BuiltInType::Unit, .name = "return"};
     if (accept(TokenKind::Arrow)) {
       return_type = parse_type();
     }
@@ -424,7 +431,7 @@ private:
   // block = "{" { stmt } "}"
   Block parse_block() {
     expect(TokenKind::LeftBrace, "before function body");
-    std::vector<StmtPtr> stmts;
+    vector<StmtPtr> stmts;
     while (!match(TokenKind::RightBrace) && !match(TokenKind::Eof)) {
       stmts.push_back(parse_stmt());
     }
@@ -454,7 +461,7 @@ private:
   // return_stmt = "return" [ expression ] ";"
   StmtPtr parse_return_stmt() {
     expect(TokenKind::KwReturn);
-    std::optional<ExprPtr> value;
+    optional<ExprPtr> value;
     if (!match(TokenKind::Semicolon)) {
       value = parse_expression();
     }

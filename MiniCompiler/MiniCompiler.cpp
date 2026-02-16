@@ -15,7 +15,10 @@
 
 namespace {
 
-std::string read_file(const std::filesystem::path &path) {
+using std::format;
+using std::string;
+
+string read_file(const std::filesystem::path &path) {
   // 1. 打开流（使用 binary 模式可以避免在 Windows
   // 上因换行符转换导致的偏移错误）
   std::ifstream file(path, std::ios::in | std::ios::binary);
@@ -25,9 +28,8 @@ std::string read_file(const std::filesystem::path &path) {
 
   // 2. 直接读取字节流
   auto size = std::filesystem::file_size(path);
-  std::string content(size, '\0');
-  file.read(content.data(), size);
-
+  string content(size, '\0');
+  file.read(content.data(), static_cast<std::streamsize>(size));
   return content;
 }
 
@@ -72,10 +74,10 @@ int main() {
     Lexer lexer(source);
     auto tokens = lexer.tokenize();
     for (const auto &token : tokens) {
-      std::string token_str = std::format("{}", token.lexeme);
+      string token_str = format("{}", token.lexeme);
       if (auto token_kind_str = to_string(token.kind);
           token_kind_str != token.lexeme) {
-        token_str = std::format("{:<10} ({})", token.lexeme, token_kind_str);
+        token_str = format("{:<10} ({})", token.lexeme, token_kind_str);
       }
       std::println(out_file, "{:>2}:{:>2}    {:>5}", token.pos.lineno,
                    token.pos.colno, token_str);

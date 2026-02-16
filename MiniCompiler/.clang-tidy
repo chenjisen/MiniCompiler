@@ -8,3 +8,5 @@ Checks: >
   -readability-identifier-length,
   -modernize-use-nodiscard,
   -modernize-use-trailing-return-type,
+  -cppcoreguidelines-macro-usage,
+  -misc-no-recursion,

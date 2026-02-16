@@ -1,6 +1,7 @@
 #pragma once
 
 #include <cctype>
+#include <cstddef>
 #include <cstdint>
 #include <format>
 #include <stdexcept>
@@ -10,6 +11,8 @@
 
 namespace mini_compiler {
 
+using std::format;
+using std::runtime_error;
 using std::string;
 using std::string_view;
 using std::vector;
@@ -85,7 +88,7 @@ using std::vector;
   X(KwReturn, "Return", Keyword)                                               \
   X(Identifier, "Identifier", Identifier)
 
-enum class TokenKind {
+enum class TokenKind : uint8_t {
   Error,
 
 #define AS_ENUM(name, str, kind_class) name,
@@ -100,7 +103,7 @@ inline bool is_keyword(string_view sv) {
   return sv == "let" || sv == "fn" || sv == "return";
 }
 
-constexpr std::string_view to_string(TokenKind kind) {
+constexpr string_view to_string(TokenKind kind) {
   switch (kind) {
 #define AS_CASE(name, str, kind_class)                                         \
   case TokenKind::name:                                                        \
@@ -119,7 +122,7 @@ constexpr std::string_view to_string(TokenKind kind) {
 }
 
 // struct TokenInfo {
-//   std::string_view name;
+//   string_view name;
 //   int precedence;
 //   bool right_associative;
 // };
@@ -158,8 +161,8 @@ struct SourcePosition {
   SourcePosition(lineno_t l, colno_t c, index_t i)
       : lineno{l}, colno{c}, index(i) {}
   auto operator<=>(SourcePosition const &) const = default;
-  auto to_string() const -> std::string {
-    return std::format("({}, {}) i={}", lineno, colno, index);
+  auto to_string() const -> string {
+    return format("({}, {}) i={}", lineno, colno, index);
   }
 };
 
@@ -176,8 +179,8 @@ class Lexer {
 public:
   explicit Lexer(string_view src) : source(src) {}
 
-  std::vector<Token> tokenize() {
-    std::vector<Token> tokens;
+  vector<Token> tokenize() {
+    vector<Token> tokens;
     while (!is_at_end()) {
       Token const tok = next_token();
       if (tok.kind != TokenKind::Error) { // 忽略错误 token 或保留特殊 token
@@ -186,11 +189,11 @@ public:
     }
     tokens.push_back({TokenKind::Eof, "", pos});
     if (!errors.empty()) {
-      std::string msg = "Lex errors:\n";
+      string msg = "Lex errors:\n";
       for (const auto &e : errors) {
         msg += e + "\n";
       }
-      throw std::runtime_error(msg);
+      throw runtime_error(msg);
     }
 
     return tokens;
@@ -200,7 +203,7 @@ private:
   string_view source;
   SourcePosition pos;
 
-  std::vector<std::string> errors;
+  vector<string> errors;
 
   Token next_token() {
     skip_whitespace();
@@ -251,6 +254,15 @@ private:
     return source[pos.index++];
   }
 
+  string_view get_substr_from_start(SourcePosition start_pos) {
+    if (start_pos.index >= source.size() || pos.index > source.size() ||
+        start_pos.index > pos.index) {
+      throw runtime_error("Invalid source position for substring extraction");
+    }
+    return source.substr(start_pos.index,
+                         static_cast<size_t>(pos.index - start_pos.index));
+  }
+
   void skip_whitespace() {
     while (!is_at_end()) {
       char const c = peek();
@@ -282,8 +294,7 @@ private:
     while (!is_at_end() && is_ident_part(peek())) {
       advance();
     }
-    string_view const text =
-        source.substr(start_pos.index, pos.index - start_pos.index);
+    string_view const text = get_substr_from_start(start_pos);
     if (is_keyword(text)) {
       if (text == "let") {
         return {.kind = TokenKind::KwLet, .lexeme = text, .pos = start_pos};
@@ -294,7 +305,7 @@ private:
       if (text == "return") {
         return {.kind = TokenKind::KwReturn, .lexeme = text, .pos = start_pos};
       }
-      throw std::runtime_error("Unknown keyword: " + string(text));
+      throw runtime_error("Unknown keyword: " + string(text));
     }
     return {.kind = TokenKind::Identifier, .lexeme = text, .pos = start_pos};
   }
@@ -349,10 +360,9 @@ private:
         return {.kind = TokenKind::Error, .lexeme = "", .pos = err_pos};
       }
       if (c == '"') {
-        advance(); // 消费闭引号
         // 提取字符串内容，不包括开头和结尾的引号
-        string_view const content =
-            source.substr(start_pos.index, pos.index - start_pos.index - 1);
+        string_view const content = get_substr_from_start(start_pos);
+        advance(); // 消费闭引号
         return {.kind = TokenKind::StringLiteral,
                 .lexeme = content,
                 .pos = start_pos};
@@ -363,14 +373,13 @@ private:
     return {.kind = TokenKind::Error, .lexeme = "", .pos = start_pos};
   }
 
-  Token lex_symbol() {
+  Token lex_symbol() { // NOLINT(readability-function-cognitive-complexity)
     auto make_token = [&](TokenKind kind) {
       SourcePosition const start_pos = pos;
       for (int i = 0; i < to_string(kind).size(); ++i) {
         advance();
       }
-      string_view const lexeme =
-          source.substr(start_pos.index, pos.index - start_pos.index);
+      string_view const lexeme = get_substr_from_start(start_pos);
       return Token(kind, lexeme, start_pos);
     };
 
@@ -602,11 +611,11 @@ private:
       return make_token(TokenKind::Dollar);
       break;
     default:
-      string_view const sv(&c, 1);
-      errors.push_back("Unexpected character: " + string(sv) + " at pos " +
-                       pos.to_string());
+      errors.push_back(
+          "Unexpected character: " + string(source.substr(pos.index, 1)) +
+          " at pos " + pos.to_string());
       return {.kind = TokenKind::Error,
-              .lexeme = std::string_view(&c, 1),
+              .lexeme = source.substr(pos.index, 1),
               .pos = pos};
     }
   }
