@@ -155,6 +155,24 @@ struct Identifier {
 
 enum class BuiltInType : uint8_t { Never, Unit, Bool, Int, Float, String };
 
+string_view to_string(const BuiltInType type) {
+  switch (type) {
+  case BuiltInType::Never:
+    return "never";
+  case BuiltInType::Unit:
+    return "unit";
+  case BuiltInType::Bool:
+    return "bool";
+  case BuiltInType::Int:
+    return "int";
+  case BuiltInType::Float:
+    return "float";
+  case BuiltInType::String:
+    return "string";
+  }
+  throw runtime_error("Unknown type");
+}
+
 struct Type {
   std::optional<BuiltInType> built_in_type; // For built-in types
   Identifier name;                          // For custom types
@@ -243,6 +261,8 @@ public:
     }
     return program;
   }
+
+  auto debug_print(std::ostream &o) const -> void;
 
 private:
   vector<Token> tokens;
@@ -526,5 +546,145 @@ private:
 //    printAST(es->expr.get(), depth + 1);
 //  }
 //}
+
+class ParseTreePrinter {
+public:
+  explicit ParseTreePrinter(std::ostream &o) : out(o) {}
+
+  void print(const Program &prog) {
+    out << "Program\n";
+    indent();
+    for (const auto &stmt : prog.declarations) {
+      print(*stmt);
+    }
+    dedent();
+  }
+
+  void print(const Stmt &stmt) {
+    std::visit([this](const auto &node) { print(node); }, stmt.node);
+  }
+
+  void print(const Expr &expr) {
+    std::visit([this](const auto &node) { print(node); }, expr.node);
+  }
+
+private:
+  std::ostream &out;
+  int level = 0;
+
+  void indent() { level++; }
+  void dedent() { level--; }
+  void print_indent() {
+    for (int i = 0; i < level; ++i)
+      out << "  ";
+  }
+
+  // 语句节点
+  void print(const ReturnStmt &node) {
+    print_indent();
+    out << "ReturnStmt";
+    if (node.value.has_value()) {
+      out << " ";
+      print(**node.value);
+    } else {
+      out << " (void)";
+    }
+    out << "\n";
+  }
+
+  void print(const AssignStmt &node) {
+    print_indent();
+    out << "AssignStmt ";
+    print(*node.left);
+    out << " = ";
+    print(*node.right);
+    out << "\n";
+  }
+
+  void print(const CallStmt &node) {
+    print_indent();
+    out << "CallStmt ";
+    print(node.call);
+    out << "\n";
+  }
+
+  void print(const VarDecl &node) {
+    print_indent();
+    out << "VarDecl " << node.name.name << ": " << type_to_string(node.type);
+    if (node.init.has_value()) {
+      out << " = ";
+      print(**node.init);
+    }
+    out << "\n";
+  }
+
+  void print(const FunctionDecl &node) {
+    print_indent();
+    out << "FunctionDecl " << node.name.name << " -> "
+        << type_to_string(node.return_type) << "\n";
+    indent();
+    print_indent();
+    out << "Params:\n";
+    indent();
+    for (const auto &param : node.params) {
+      print_indent();
+      out << "Param " << param.name.name << ": " << type_to_string(param.type)
+          << "\n";
+    }
+    dedent();
+    print_indent();
+    out << "Body:\n";
+    print(node.body);
+    dedent();
+  }
+
+  void print(const Block &block) {
+    indent();
+    for (const auto &stmt : block.stmts) {
+      print(*stmt);
+    }
+    dedent();
+  }
+
+  // 表达式节点
+  void print(const Identifier &id) { out << id.name; }
+
+  void print(const LiteralExpr &lit) {
+    switch (lit.type) {
+    case BuiltInType::Int:
+    case BuiltInType::Float:
+    case BuiltInType::Bool:
+      out << lit.value;
+      break;
+    case BuiltInType::String:
+      out << '"' << lit.value << '"';
+      break;
+    }
+  }
+
+  void print(const CallExpr &call) {
+    out << call.callee.name << "(";
+    for (size_t i = 0; i < call.args.size(); ++i) {
+      if (i > 0)
+        out << ", ";
+      print(*call.args[i]);
+    }
+    out << ")";
+  }
+
+  static std::string_view type_to_string(const Type &type) {
+    if (type.built_in_type.has_value()) {
+      return to_string(*type.built_in_type);
+    }
+    return type.name.name;
+  }
+};
+
+auto parser_debug_print(const Program &program, std::ostream &o) -> void {
+
+  auto tree_printer = ParseTreePrinter{o};
+  // TODO: visit(tree_printer);
+  tree_printer.print(program);
+}
 
 } // namespace mini_compiler

@@ -66,9 +66,9 @@ int main() {
     )";
 
   try {
-    std::ofstream out_file("out\\lex.txt", std::ios::out | std::ios::binary);
-    if (!out_file) {
-      throw std::runtime_error("Failed to open output file");
+    std::ofstream out_lex_file("out/lex.txt", std::ios::out | std::ios::binary);
+    if (!out_lex_file) {
+      throw std::runtime_error("Failed to open output lex file");
     }
 
     Lexer lexer(source);
@@ -79,17 +79,20 @@ int main() {
           token_kind_str != token.lexeme) {
         token_str = format("{:<10} ({})", token.lexeme, token_kind_str);
       }
-      std::println(out_file, "{:>2}:{:>2}    {:>5}", token.pos.lineno,
+      std::println(out_lex_file, "{:>2}:{:>2}    {:>5}", token.pos.lineno,
                    token.pos.colno, token_str);
     }
     Parser parser(tokens);
     Program const prog = parser.parse();
     std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
 
-    // std::cout << "AST Structure:\n";
-    // for (const auto &decl : prog.declarations) {
-    //   printAST(decl.get());
-    // }
+    std::ofstream out_parser_file("out/parser.txt",
+                                  std::ios::out | std::ios::binary);
+    if (!out_parser_file) {
+      throw std::runtime_error("Failed to open output file");
+    }
+    parser_debug_print(prog, out_parser_file);
+
   } catch (const std::exception &e) {
     std::cerr << "Error: " << e.what() << "\n";
     return 1;
