@@ -1,0 +1,16 @@
+---
+Language: Cpp
+BasedOnStyle: LLVM
+
+IndentWidth: 4
+PointerAlignment: Left
+QualifierAlignment: Right
+BinPackArguments: false
+BinPackParameters: false
+AlignAfterOpenBracket: AlwaysBreak
+
+IncludeBlocks: Regroup
+LineEnding: LF
+SeparateDefinitionBlocks: Always
+WrapNamespaceBodyWithEmptyLines: Always
+BreakAfterAttributes: Always

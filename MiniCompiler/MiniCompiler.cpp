@@ -1,6 +1,9 @@
 // MiniCompiler.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
 //
 
+#include "lexer.h"
+#include "parser.h"
+
 #include <exception>
 #include <filesystem>
 #include <format>
@@ -10,34 +13,31 @@
 #include <stdexcept>
 #include <string>
 
-#include "lexer.h"
-#include "parser.h"
-
 namespace {
 
 using std::format;
 using std::string;
 
-string read_file(const std::filesystem::path &path) {
-  // 1. 打开流（使用 binary 模式可以避免在 Windows
-  // 上因换行符转换导致的偏移错误）
-  std::ifstream file(path, std::ios::in | std::ios::binary);
-  if (!file) {
-    return "";
-  }
+string read_file(std::filesystem::path const& path) {
+    // 1. 打开流（使用 binary 模式可以避免在 Windows
+    // 上因换行符转换导致的偏移错误）
+    std::ifstream file(path, std::ios::in | std::ios::binary);
+    if (!file) {
+        return "";
+    }
 
-  // 2. 直接读取字节流
-  auto size = std::filesystem::file_size(path);
-  string content(size, '\0');
-  file.read(content.data(), static_cast<std::streamsize>(size));
-  return content;
+    // 2. 直接读取字节流
+    auto size = std::filesystem::file_size(path);
+    string content(size, '\0');
+    file.read(content.data(), static_cast<std::streamsize>(size));
+    return content;
 }
 
 } // namespace
 
 int main() {
-  using namespace mini_compiler;
-  string const source = R"(
+    using namespace mini_compiler;
+    string const source = R"(
     let x: int = 123;
     fn foo(a: int, b: float) -> bool {
         let y: string = "hi\n";
@@ -65,40 +65,44 @@ int main() {
     }
     )";
 
-  try {
-    std::ofstream out_lex_file("out/lex.txt", std::ios::out | std::ios::binary);
-    if (!out_lex_file) {
-      throw std::runtime_error("Failed to open output lex file");
+    try {
+        std::ofstream out_lex_file(
+            "out/lex.txt", std::ios::out | std::ios::binary);
+        if (!out_lex_file) {
+            throw std::runtime_error("Failed to open output lex file");
+        }
+
+        Lexer lexer(source);
+        auto tokens = lexer.tokenize();
+        for (auto const& token : tokens) {
+            string token_str = format("{}", token.lexeme);
+            if (auto token_kind_str = to_string(token.kind);
+                token_kind_str != token.lexeme) {
+                token_str = format("{:<10} ({})", token.lexeme, token_kind_str);
+            }
+            std::println(
+                out_lex_file,
+                "{:>2}:{:>2}    {:>5}",
+                token.pos.lineno,
+                token.pos.colno,
+                token_str);
+        }
+        Parser parser(tokens);
+        Program const prog = parser.parse();
+        std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
+
+        std::ofstream out_parser_file(
+            "out/parser.txt", std::ios::out | std::ios::binary);
+        if (!out_parser_file) {
+            throw std::runtime_error("Failed to open output file");
+        }
+        parser_debug_print(prog, out_parser_file);
+    } catch (std::exception const& e) {
+        std::cerr << "Error: " << e.what() << "\n";
+        return 1;
     }
 
-    Lexer lexer(source);
-    auto tokens = lexer.tokenize();
-    for (const auto &token : tokens) {
-      string token_str = format("{}", token.lexeme);
-      if (auto token_kind_str = to_string(token.kind);
-          token_kind_str != token.lexeme) {
-        token_str = format("{:<10} ({})", token.lexeme, token_kind_str);
-      }
-      std::println(out_lex_file, "{:>2}:{:>2}    {:>5}", token.pos.lineno,
-                   token.pos.colno, token_str);
-    }
-    Parser parser(tokens);
-    Program const prog = parser.parse();
-    std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
-
-    std::ofstream out_parser_file("out/parser.txt",
-                                  std::ios::out | std::ios::binary);
-    if (!out_parser_file) {
-      throw std::runtime_error("Failed to open output file");
-    }
-    parser_debug_print(prog, out_parser_file);
-
-  } catch (const std::exception &e) {
-    std::cerr << "Error: " << e.what() << "\n";
-    return 1;
-  }
-
-  return 0;
+    return 0;
 }
 
 // 运行程序: Ctrl + F5 或调试 >“开始执行(不调试)”菜单
