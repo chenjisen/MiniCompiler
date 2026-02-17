@@ -157,7 +157,7 @@ enum class BuiltInType : uint8_t { Never, Unit, Bool, Int, Float, String };
 
 struct Type {
   std::optional<BuiltInType> built_in_type; // For built-in types
-  string_view name;                         // For custom types
+  Identifier name;                          // For custom types
 };
 
 struct LiteralExpr {
@@ -173,16 +173,16 @@ struct CallExpr {
 struct VarDecl {
   Identifier name;
   Type type;
-  optional<ExprPtr> init; // Optional
+  optional<ExprPtr> init;
 };
 
 struct ReturnStmt {
-  optional<ExprPtr> value; // Optional
+  optional<ExprPtr> value;
 };
 
 struct AssignStmt {
-  Identifier name;
-  ExprPtr value;
+  ExprPtr left;
+  ExprPtr right;
 };
 
 struct Block {
@@ -311,7 +311,7 @@ private:
     if (token.lexeme == "bool") {
       type = BuiltInType::Bool;
     }
-    return {.built_in_type = type, .name = token.lexeme};
+    return {.built_in_type = type, .name = {token.lexeme}};
   }
 
   LiteralExpr parse_literal() {
@@ -404,7 +404,7 @@ private:
     expect(TokenKind::RightParen, "after parameters");
 
     // Default return type is unit
-    Type return_type = {.built_in_type = BuiltInType::Unit, .name = "return"};
+    Type return_type = {.built_in_type = BuiltInType::Unit, .name = {"return"}};
     if (accept(TokenKind::Arrow)) {
       return_type = parse_type();
     }
@@ -439,14 +439,14 @@ private:
     return {std::move(stmts)};
   }
 
-  // assignment_stmt = identifier "=" expression ";"
+  // assignment_stmt = expression "=" expression ";"
   StmtPtr parse_assignment_stmt() {
     // Lookahead(1) is '=' -> Assignment Statement
-    Identifier const name = parse_identifier();
+    auto lhs = parse_expression();
     expect(TokenKind::Assignment, "in assignment");
     auto rhs = parse_expression();
     expect(TokenKind::Semicolon, "after assignment");
-    return Stmt::make(AssignStmt(name, std::move(rhs)));
+    return Stmt::make(AssignStmt(std::move(lhs), std::move(rhs)));
   }
 
   // function_call_stmt = function_call ";"
