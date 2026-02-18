@@ -14,3 +14,9 @@ LineEnding: LF
 SeparateDefinitionBlocks: Always
 WrapNamespaceBodyWithEmptyLines: Always
 BreakAfterAttributes: Always
+
+AlignArrayOfStructures: Right
+AlignConsecutiveAssignments:
+  Enabled: true
+AlignConsecutiveShortCaseStatements:
+  Enabled: true

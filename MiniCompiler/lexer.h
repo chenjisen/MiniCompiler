@@ -99,7 +99,7 @@ enum class TokenKind : uint8_t {
     None,
 };
 
-inline bool is_keyword(string_view sv) {
+constexpr bool is_keyword(string_view sv) {
     return sv == "let" || sv == "fn" || sv == "return";
 }
 
@@ -149,13 +149,13 @@ constexpr string_view to_string(TokenKind kind) {
 // };
 
 using lineno_t = int32_t;
-using colno_t = int32_t;
-using index_t = int32_t;
+using colno_t  = int32_t;
+using index_t  = int32_t;
 
 struct SourcePosition {
     lineno_t lineno = 1; // one-based offset into program source
-    colno_t colno = 1;   // one-based offset into line
-    index_t index = 0;
+    colno_t colno   = 1; // one-based offset into line
+    index_t index   = 0;
 
     SourcePosition() = default;
 
@@ -312,9 +312,9 @@ class Lexer {
             }
             if (text == "return") {
                 return {
-                    .kind = TokenKind::KwReturn,
+                    .kind   = TokenKind::KwReturn,
                     .lexeme = text,
-                    .pos = start_pos};
+                    .pos    = start_pos};
             }
             throw runtime_error("Unknown keyword: " + string(text));
         }
@@ -377,9 +377,9 @@ class Lexer {
                 string_view const content = get_substr_from_start(start_pos);
                 advance(); // 消费闭引号
                 return {
-                    .kind = TokenKind::StringLiteral,
+                    .kind   = TokenKind::StringLiteral,
                     .lexeme = content,
-                    .pos = start_pos};
+                    .pos    = start_pos};
             }
             advance();
         }
@@ -397,9 +397,9 @@ class Lexer {
             return Token(kind, lexeme, start_pos);
         };
 
-        char const c = peek();
-        auto peek1 = peek(1);
-        auto peek2 = peek(2);
+        char const c     = peek();
+        char const peek1 = peek(1);
+        char const peek2 = peek(2);
 
         switch (c) {
             // G     '/=' '/'
@@ -411,7 +411,6 @@ class Lexer {
             }
 
             // G     '<<=' '<<' '<=>' '<=' '<'
-            break;
         case '<':
             if (peek1 == '<') {
                 if (peek2 == '=') {
@@ -428,7 +427,6 @@ class Lexer {
             }
 
             // G     '>>=' '>>' '>=' '>'
-            break;
         case '>':
             if (peek1 == '>') {
                 if (peek2 == '=') {
@@ -442,7 +440,6 @@ class Lexer {
             }
 
             // G     '++' '+=' '+'
-            break;
         case '+':
             if (peek1 == '+') {
                 return make_token(TokenKind::PlusPlus);
@@ -453,7 +450,6 @@ class Lexer {
             }
 
             // G     '--' '-=' '->' '-'
-            break;
         case '-':
             if (peek1 == '-') {
                 return make_token(TokenKind::MinusMinus);
@@ -466,7 +462,6 @@ class Lexer {
             }
 
             // G     '||=' '||' '|=' '|'
-            break;
         case '|':
             if (peek1 == '|') {
                 if (peek2 == '=') {
@@ -480,7 +475,6 @@ class Lexer {
             }
 
             // G     '&&=' '&&' '&=' '&'
-            break;
         case '&':
             if (peek1 == '&') {
                 if (peek2 == '=') {
@@ -494,11 +488,10 @@ class Lexer {
             }
 
             //  Next,
-            //  all the other operators that have a compound assignment
-            //  form
+            //  all the other operators
+            //  that have a compound assignment form
 
             // G     '*=' '*'
-            break;
         case '*':
             if (peek1 == '=') {
                 return make_token(TokenKind::MultiplyEq);
@@ -507,7 +500,6 @@ class Lexer {
             }
 
             // G     '%=' '%'
-            break;
         case '%':
             if (peek1 == '=') {
                 return make_token(TokenKind::ModuloEq);
@@ -516,7 +508,6 @@ class Lexer {
             }
 
             // G     '^=' '^'
-            break;
         case '^':
             if (peek1 == '=') {
                 return make_token(TokenKind::CaretEq);
@@ -525,7 +516,6 @@ class Lexer {
             }
 
             // G     '~=' '~'
-            break;
         case '~':
             if (peek1 == '=') {
                 return make_token(TokenKind::TildeEq);
@@ -534,7 +524,6 @@ class Lexer {
             }
 
             // G     '==' '='
-            break;
         case '=':
             if (peek1 == '=') {
                 return make_token(TokenKind::EqualComparison);
@@ -543,7 +532,6 @@ class Lexer {
             }
 
             // G     '!=' '!'
-            break;
         case '!':
             if (peek1 == '=') {
                 return make_token(TokenKind::NotEqualComparison);
@@ -554,7 +542,6 @@ class Lexer {
             // G
             // G punctuator: one of
             // G     '.' '..' '...' '..<' '..='
-            break;
         case '.':
             if (peek1 == '.' && peek2 == '.') {
                 return make_token(TokenKind::Ellipsis);
@@ -569,7 +556,6 @@ class Lexer {
             }
 
             // G     '::' ':'
-            break;
         case ':':
             if (peek1 == ':') {
                 return make_token(TokenKind::Scope);
@@ -581,59 +567,37 @@ class Lexer {
 
             // G     '{' '}' '(' ')' '[' ']' ';' ',' '?' '$'
             // G
-
-            break;
         case '{':
             return make_token(TokenKind::LeftBrace);
-
-            break;
         case '}':
             return make_token(TokenKind::RightBrace);
-
-            break;
         case '(':
             return make_token(TokenKind::LeftParen);
-
-            break;
         case ')':
             return make_token(TokenKind::RightParen);
-
-            break;
         case '[':
             return make_token(TokenKind::LeftBracket);
-
-            break;
         case ']':
             return make_token(TokenKind::RightBracket);
-
-            break;
         case ';':
             return make_token(TokenKind::Semicolon);
-
-            break;
         case ',':
             return make_token(TokenKind::Comma);
-
-            break;
         case '?':
             return make_token(TokenKind::QuestionMark);
-
-            break;
         case '@':
             return make_token(TokenKind::At);
-
-            break;
         case '$':
             return make_token(TokenKind::Dollar);
-            break;
+
         default:
             errors.push_back(
                 "Unexpected character: " + string(source.substr(pos.index, 1)) +
                 " at pos " + pos.to_string());
             return {
-                .kind = TokenKind::Error,
+                .kind   = TokenKind::Error,
                 .lexeme = source.substr(pos.index, 1),
-                .pos = pos};
+                .pos    = pos};
         }
     }
 };
