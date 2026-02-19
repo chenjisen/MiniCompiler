@@ -74,6 +74,25 @@ struct CallExpr {
     vector<ExprPtr> args;
 };
 
+struct BinaryExpr {
+    ExprPtr left;
+    TokenKind op;
+    ExprPtr right;
+};
+
+int get_precedence(TokenKind kind) {
+    switch (kind) {
+    case TokenKind::Plus:
+    case TokenKind::Minus:
+        return 1; // 加减优先级最低
+    case TokenKind::Multiply:
+    case TokenKind::Slash:
+        return 2; // 乘除优先级较高
+    default:
+        return -1; // 不是二元运算符
+    }
+}
+
 struct VarDecl {
     Identifier name;
     Type type;
@@ -110,7 +129,7 @@ struct FunctionDecl {
 };
 
 struct Expr {
-    using Node = std::variant<Identifier, LiteralExpr, CallExpr>;
+    using Node = std::variant<Identifier, LiteralExpr, CallExpr, BinaryExpr>;
     Node node;
 
     template <typename T> static ExprPtr make(T&& value) {
@@ -142,7 +161,7 @@ class Parser {
 
     Program parse() {
         Program program;
-        while (!match(TokenKind::Eof)) {
+        while (!match(TokenKind::End)) {
             program.declarations.push_back(parse_declaration());
         }
         return program;
@@ -245,8 +264,30 @@ class Parser {
 
     // --- Expressions ---
 
-    // expression = primary
-    ExprPtr parse_expression() { return parse_primary_expression(); }
+    // expression = binary_expression
+    ExprPtr parse_expression() { return parse_binary_expression(); }
+
+    ExprPtr parse_binary_expression(int min_precedence = 0) {
+        auto left = parse_primary_expression(); // 解析左操作数
+
+        while (true) {
+            TokenKind op   = peek().kind;
+            int precedence = get_precedence(op);
+            // 如果当前运算符优先级低于门槛，或者不是运算符，则停止
+            if (precedence < min_precedence)
+                break;
+
+            advance(); // 消费运算符
+
+            // 递归解析右操作数，使用当前优先级 + 1（左结合）
+            auto right = parse_binary_expression(precedence + 1);
+
+            // 构造二元表达式节点
+            left =
+                Expr::make(BinaryExpr{std::move(left), op, std::move(right)});
+        }
+        return left;
+    }
 
     // primary = identifier | literal | function_call | "(" expression ")"
     ExprPtr parse_primary_expression() {
@@ -342,7 +383,7 @@ class Parser {
     Block parse_block() {
         expect(TokenKind::LeftBrace, "before function body");
         vector<StmtPtr> stmts;
-        while (!match(TokenKind::RightBrace) && !match(TokenKind::Eof)) {
+        while (!match(TokenKind::RightBrace) && !match(TokenKind::End)) {
             stmts.push_back(parse_stmt());
         }
         expect(TokenKind::RightBrace, "after function body");
@@ -557,13 +598,22 @@ class ParseTreePrinter {
     }
 
     void print(CallExpr const& call) {
-        out << call.callee.name << "(";
+        out << call.callee.name << " (";
         for (int i = 0; i < ssize(call.args); ++i) {
             if (i > 0) {
                 out << ", ";
             }
+            out << " ";
             print(*call.args[i]);
         }
+        out << " )";
+    }
+
+    void print(BinaryExpr const& bin) {
+        out << "(";
+        print(*bin.left);
+        out << " " << to_string(bin.op) << " ";
+        print(*bin.right);
         out << ")";
     }
 

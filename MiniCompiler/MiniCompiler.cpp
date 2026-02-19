@@ -39,19 +39,21 @@ int main() {
     using namespace mini_compiler;
     string const source = R"(
     let x: int = 123;
+    let y: int = 1 + 2 * 3 - 4 / 2;
+
     fn foo(a: int, b: float) -> bool {
-        let y: string = "hi\n";
+        let s: string = "hi\n";
         x = 1;
-        print(y);
+        print(s);
         return true;
     }
-    fn add(a: int, b: int) -> int {
-         return a; // simplified
+    fn calc(a: int, b: int) -> int {
+        return a * b + 10;
     }
 
     let count: int = 0;
     fn increment(amount: int) -> int {
-        // count = count + amount;
+        count = count + amount;
         return count;  // simplified
     }
 

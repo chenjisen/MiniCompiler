@@ -95,7 +95,7 @@ enum class TokenKind : uint8_t {
     TOKEN_LIST(AS_ENUM)
 #undef AS_ENUM
 
-        Eof,
+        End,
     None,
 };
 
@@ -112,8 +112,8 @@ constexpr string_view to_string(TokenKind kind) {
 #undef AS_CASE
     case TokenKind::Error:
         return "(ERROR)";
-    case TokenKind::Eof:
-        return "(EOF)";
+    case TokenKind::End:
+        return "(END)";
     case TokenKind::None:
         return "(NONE)";
     default:
@@ -191,7 +191,7 @@ class Lexer {
                 tokens.emplace_back(tok);
             }
         }
-        tokens.push_back({TokenKind::Eof, "", pos});
+        tokens.push_back({TokenKind::End, "", pos});
         if (!errors.empty()) {
             string msg = "Lex errors:\n";
             for (auto const& e : errors) {
@@ -212,7 +212,7 @@ class Lexer {
     Token next_token() {
         skip_whitespace();
         if (is_at_end()) {
-            return {.kind = TokenKind::Eof, .lexeme = "", .pos = pos};
+            return {.kind = TokenKind::End, .lexeme = "", .pos = pos};
         }
 
         char const c = peek();
