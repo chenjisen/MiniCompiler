@@ -41,7 +41,7 @@ struct Identifier {
 
 enum class BuiltInType : uint8_t { Never, Unit, Bool, Int, Float, String };
 
-inline string_view to_string(BuiltInType const type) {
+constexpr string_view to_string(BuiltInType const type) {
     switch (type) {
     case BuiltInType::Never:
         return "never";
@@ -161,7 +161,7 @@ class Parser {
         if (pos < 0) {
             throw error("Negative position not supported");
         }
-        if (pos + offset >= std::ssize(tokens)) {
+        if (pos + offset >= ssize(tokens)) {
             return tokens.back();
         }
         return tokens[static_cast<size_t>(pos) + offset];
@@ -558,7 +558,7 @@ class ParseTreePrinter {
 
     void print(CallExpr const& call) {
         out << call.callee.name << "(";
-        for (size_t i = 0; i < call.args.size(); ++i) {
+        for (int i = 0; i < ssize(call.args); ++i) {
             if (i > 0) {
                 out << ", ";
             }

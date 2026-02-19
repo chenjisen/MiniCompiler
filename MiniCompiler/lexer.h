@@ -233,7 +233,7 @@ class Lexer {
         return lex_symbol();
     }
 
-    bool is_at_end() const { return pos.index >= source.size(); }
+    bool is_at_end() const { return pos.index >= ssize(source); }
 
     static bool is_ident_start(char c) {
         return (std::isalpha(c) != 0) || c == '_';
@@ -245,7 +245,7 @@ class Lexer {
 
     char peek(int offset = 0) const {
         int const p = pos.index + offset;
-        if (p >= source.size()) {
+        if (p >= ssize(source)) {
             return '\0';
         }
         return source[p];
@@ -260,7 +260,7 @@ class Lexer {
     }
 
     string_view get_substr_from_start(SourcePosition start_pos) {
-        if (start_pos.index >= source.size() || pos.index > source.size() ||
+        if (start_pos.index >= ssize(source) || pos.index > ssize(source) ||
             start_pos.index > pos.index) {
             throw runtime_error(
                 "Invalid source position for substring extraction");
@@ -390,7 +390,7 @@ class Lexer {
     Token lex_symbol() { // NOLINT(readability-function-cognitive-complexity)
         auto make_token = [&](TokenKind kind) {
             SourcePosition const start_pos = pos;
-            for (int i = 0; i < to_string(kind).size(); ++i) {
+            for (int i = 0; i < ssize(to_string(kind)); ++i) {
                 advance();
             }
             string_view const lexeme = get_substr_from_start(start_pos);
