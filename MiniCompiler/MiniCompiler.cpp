@@ -45,10 +45,10 @@ int main() {
         let s: string = "hi\n";
         x = 1;
         print(s);
-        return true;
+        return !(a!=0) && (x > 5);
     }
-    fn calc(a: int, b: int) -> int {
-        return a * b + 10;
+    fn calc(a: int, b: int, c: int) -> int {
+        return -c + a * b + 10;
     }
 
     let count: int = 0;
@@ -58,8 +58,8 @@ int main() {
     }
 
     fn main() {
-        foo(10, 3.14);
-        x = add(x, 20);
+        foo(2 - 3, 3.14 * 2);
+        x = add(x, 20, 10);
         print("x: ", x);
         let result: int = increment(5);
         print("Result: ", result);

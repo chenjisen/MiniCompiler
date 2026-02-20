@@ -90,18 +90,12 @@ using std::vector;
 
 enum class TokenKind : uint8_t {
     Error,
+    End,
 
 #define AS_ENUM(name, str, kind_class) name,
     TOKEN_LIST(AS_ENUM)
 #undef AS_ENUM
-
-        End,
-    None,
 };
-
-constexpr bool is_keyword(string_view sv) {
-    return sv == "let" || sv == "fn" || sv == "return";
-}
 
 constexpr string_view to_string(TokenKind kind) {
     switch (kind) {
@@ -114,10 +108,43 @@ constexpr string_view to_string(TokenKind kind) {
         return "(ERROR)";
     case TokenKind::End:
         return "(END)";
-    case TokenKind::None:
-        return "(NONE)";
     default:
         return "(UNKNOWN)";
+    }
+}
+
+constexpr bool is_keyword(string_view sv) {
+    return sv == "let" || sv == "fn" || sv == "return";
+}
+
+// right-associative check for certain tokens
+// static bool is_assign(TokenKind k) {
+//    switch (k) {
+//    case TokenKind::Assign:
+//    case TokenKind::PlusAssign:
+//    case TokenKind::MinusAssign:
+//    case TokenKind::MulAssign:
+//    case TokenKind::DivAssign:
+//    case TokenKind::ModAssign:
+//    case TokenKind::ShlAssign:
+//    case TokenKind::ShrAssign:
+//    case TokenKind::AndAssign:
+//    case TokenKind::XorAssign:
+//    case TokenKind::OrAssign:
+//        return true;
+//    default:
+//        return false;
+//    }
+//}
+
+constexpr bool is_prefix_unary(TokenKind k) {
+    switch (k) {
+    case TokenKind::Plus:
+    case TokenKind::Minus:
+    case TokenKind::Not:
+        return true;
+    default:
+        return false;
     }
 }
 
@@ -170,7 +197,7 @@ struct SourcePosition {
 };
 
 struct Token {
-    TokenKind kind{};
+    TokenKind kind = TokenKind::Error;
     string_view lexeme;
     SourcePosition pos;
 };
@@ -212,13 +239,13 @@ class Lexer {
     Token next_token() {
         skip_whitespace();
         if (is_at_end()) {
-            return {.kind = TokenKind::End, .lexeme = "", .pos = pos};
+            return {.kind = TokenKind::End, .lexeme = "<eof>", .pos = pos};
         }
 
         char const c = peek();
 
         // number: digits ( '.' digits )?
-        if (std::isdigit(c) != 0) {
+        if (is_digit(c)) {
             return lex_number();
         }
 
@@ -322,23 +349,23 @@ class Lexer {
             .kind = TokenKind::Identifier, .lexeme = text, .pos = start_pos};
     }
 
+    static bool is_digit(char c) { return std::isdigit(c) != 0; }
+
     Token lex_number() {
         SourcePosition const start_pos = pos;
 
-        while (!is_at_end() && (std::isdigit(peek()) != 0)) {
+        while (!is_at_end() && is_digit(peek())) {
             advance();
         }
 
-        TokenKind kind = TokenKind::None;
+        TokenKind kind = TokenKind::Error;
 
         // Check for float
         if (peek() == '.') {
             kind = TokenKind::FloatLiteral;
             advance(); // Consume .
-            if (std::isdigit(peek()) != 0) {
-                while (std::isdigit(peek()) != 0) {
-                    advance();
-                }
+            while (is_digit(peek())) {
+                advance();
             }
         } else {
             kind = TokenKind::IntLiteral;

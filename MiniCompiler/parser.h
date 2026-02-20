@@ -74,20 +74,48 @@ struct CallExpr {
     vector<ExprPtr> args;
 };
 
-struct BinaryExpr {
-    ExprPtr left;
+struct UnaryExpr {
     TokenKind op;
+    ExprPtr operand;
+};
+
+struct BinaryExpr {
+    TokenKind op;
+    ExprPtr left;
     ExprPtr right;
 };
 
-int get_precedence(TokenKind kind) {
+// higher number -> tighter binding
+// chosen numbers are illustrative; adjust if needed
+constexpr int get_precedence(TokenKind kind) {
     switch (kind) {
-    case TokenKind::Plus:
-    case TokenKind::Minus:
-        return 1; // 加减优先级最低
+    // multiplicative
     case TokenKind::Multiply:
     case TokenKind::Slash:
-        return 2; // 乘除优先级较高
+    case TokenKind::Modulo:
+    case TokenKind::Ampersand:
+    case TokenKind::LeftShift:
+    case TokenKind::RightShift:
+        return 5;
+    // additive
+    case TokenKind::Plus:
+    case TokenKind::Minus:
+    case TokenKind::Pipe:
+    case TokenKind::Caret:
+        return 4;
+    // relational
+    case TokenKind::Less:
+    case TokenKind::LessEq:
+    case TokenKind::Greater:
+    case TokenKind::GreaterEq:
+    case TokenKind::EqualComparison:
+    case TokenKind::NotEqualComparison:
+        return 3;
+    // logical && ||
+    case TokenKind::LogicalAnd:
+        return 2;
+    case TokenKind::LogicalOr:
+        return 1;
     default:
         return -1; // 不是二元运算符
     }
@@ -129,7 +157,8 @@ struct FunctionDecl {
 };
 
 struct Expr {
-    using Node = std::variant<Identifier, LiteralExpr, CallExpr, BinaryExpr>;
+    using Node =
+        std::variant<Identifier, LiteralExpr, CallExpr, BinaryExpr, UnaryExpr>;
     Node node;
 
     template <typename T> static ExprPtr make(T&& value) {
@@ -264,11 +293,24 @@ class Parser {
 
     // --- Expressions ---
 
-    // expression = binary_expression
-    ExprPtr parse_expression() { return parse_binary_expression(); }
+    // parse unary prefix operators
+    ExprPtr parse_unary_expression() {
+        // consider which tokens are prefix unary in your language
+        TokenKind op = peek().kind;
+        if (is_prefix_unary(op)) {
+            // allow repeated unary
+            TokenKind op = advance().kind;
+            auto operand = parse_primary_expression();
+            return Expr::make(UnaryExpr{op, std::move(operand)});
+        }
+        // otherwise primary/postfix
+        return parse_primary_expression();
+    }
 
-    ExprPtr parse_binary_expression(int min_precedence = 0) {
-        auto left = parse_primary_expression(); // 解析左操作数
+    // The core precedence-climbing routine:
+    // parse expressions whose precedence is >= min_prec.
+    ExprPtr parse_binary_expression(int min_precedence) {
+        auto left = parse_unary_expression();
 
         while (true) {
             TokenKind op   = peek().kind;
@@ -277,14 +319,12 @@ class Parser {
             if (precedence < min_precedence)
                 break;
 
-            advance(); // 消费运算符
+            advance(); // consume operator
 
             // 递归解析右操作数，使用当前优先级 + 1（左结合）
             auto right = parse_binary_expression(precedence + 1);
-
-            // 构造二元表达式节点
             left =
-                Expr::make(BinaryExpr{std::move(left), op, std::move(right)});
+                Expr::make(BinaryExpr{op, std::move(left), std::move(right)});
         }
         return left;
     }
@@ -292,6 +332,7 @@ class Parser {
     // primary = identifier | literal | function_call | "(" expression ")"
     ExprPtr parse_primary_expression() {
         if (accept(TokenKind::LeftParen)) {
+            // parse any expression inside parentheses
             auto expr = parse_expression();
             expect(TokenKind::RightParen, "after expression");
             return expr;
@@ -322,6 +363,8 @@ class Parser {
         expect(TokenKind::RightParen, "after arguments");
         return Expr::make(CallExpr(name, std::move(args)));
     }
+
+    ExprPtr parse_expression() { return parse_binary_expression(0); }
 
     // --- Declarations ---
 
@@ -607,6 +650,12 @@ class ParseTreePrinter {
             print(*call.args[i]);
         }
         out << " )";
+    }
+
+    void print(UnaryExpr const& un) {
+        out << "(" << to_string(un.op);
+        print(*un.operand);
+        out << ")";
     }
 
     void print(BinaryExpr const& bin) {
