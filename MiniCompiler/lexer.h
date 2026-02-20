@@ -108,9 +108,8 @@ constexpr string_view to_string(TokenKind kind) {
         return "(ERROR)";
     case TokenKind::End:
         return "(END)";
-    default:
-        return "(UNKNOWN)";
     }
+    return "(UNKNOWN)";
 }
 
 constexpr bool is_keyword(string_view sv) {
@@ -132,9 +131,8 @@ constexpr bool is_keyword(string_view sv) {
 //    case TokenKind::XorAssign:
 //    case TokenKind::OrAssign:
 //        return true;
-//    default:
-//        return false;
 //    }
+//    return false;
 //}
 
 constexpr bool is_prefix_unary(TokenKind k) {

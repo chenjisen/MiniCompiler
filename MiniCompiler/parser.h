@@ -69,11 +69,6 @@ struct LiteralExpr {
     string_view value;
 };
 
-struct CallExpr {
-    Identifier callee;
-    vector<ExprPtr> args;
-};
-
 struct UnaryExpr {
     TokenKind op;
     ExprPtr operand;
@@ -83,6 +78,11 @@ struct BinaryExpr {
     TokenKind op;
     ExprPtr left;
     ExprPtr right;
+};
+
+struct CallExpr {
+    Identifier callee;
+    vector<ExprPtr> args;
 };
 
 // higher number -> tighter binding
@@ -296,12 +296,13 @@ class Parser {
     // parse unary prefix operators
     ExprPtr parse_unary_expression() {
         // consider which tokens are prefix unary in your language
-        TokenKind op = peek().kind;
+        TokenKind const op = peek().kind;
         if (is_prefix_unary(op)) {
             // allow repeated unary
-            TokenKind op = advance().kind;
-            auto operand = parse_primary_expression();
-            return Expr::make(UnaryExpr{op, std::move(operand)});
+            TokenKind const op = advance().kind;
+            auto operand       = parse_primary_expression();
+            return Expr::make(
+                UnaryExpr{.op = op, .operand = std::move(operand)});
         }
         // otherwise primary/postfix
         return parse_primary_expression();
@@ -313,18 +314,22 @@ class Parser {
         auto left = parse_unary_expression();
 
         while (true) {
-            TokenKind op   = peek().kind;
-            int precedence = get_precedence(op);
+            TokenKind const op   = peek().kind;
+            int const precedence = get_precedence(op);
             // 如果当前运算符优先级低于门槛，或者不是运算符，则停止
-            if (precedence < min_precedence)
+            if (precedence < min_precedence) {
                 break;
+            }
 
             advance(); // consume operator
 
             // 递归解析右操作数，使用当前优先级 + 1（左结合）
             auto right = parse_binary_expression(precedence + 1);
-            left =
-                Expr::make(BinaryExpr{op, std::move(left), std::move(right)});
+            left       = Expr::make(
+                BinaryExpr{
+                          .op    = op,
+                          .left  = std::move(left),
+                          .right = std::move(right)});
         }
         return left;
     }
