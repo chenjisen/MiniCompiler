@@ -7,6 +7,7 @@
 #include <stdexcept>
 #include <string>
 #include <string_view>
+#include <unordered_map>
 #include <vector>
 
 namespace mini_compiler {
@@ -22,118 +23,145 @@ using std::vector;
 // ==========================================
 
 #define TOKEN_LIST(X)                                                          \
-    X(SlashEq, "/=", SlashEq)                                                  \
-    X(Slash, "/", Slash)                                                       \
-    X(LeftShiftEq, "<<=", LeftShiftEq)                                         \
-    X(LeftShift, "<<", LeftShift)                                              \
-    X(Spaceship, "<=>", Spaceship)                                             \
-    X(LessEq, "<=", LessEq)                                                    \
-    X(Less, "<", Less)                                                         \
-    X(RightShiftEq, ">>=", RightShiftEq)                                       \
-    X(RightShift, ">>", RightShift)                                            \
-    X(GreaterEq, ">=", GreaterEq)                                              \
-    X(Greater, ">", Greater)                                                   \
-    X(PlusPlus, "++", PlusPlus)                                                \
-    X(PlusEq, "+=", PlusEq)                                                    \
-    X(Plus, "+", Plus)                                                         \
-    X(MinusMinus, "--", MinusMinus)                                            \
-    X(MinusEq, "-=", MinusEq)                                                  \
-    X(Arrow, "->", Arrow)                                                      \
-    X(Minus, "-", Minus)                                                       \
-    X(LogicalOrEq, "||=", LogicalOrEq)                                         \
-    X(LogicalOr, "||", LogicalOr)                                              \
-    X(PipeEq, "|=", PipeEq)                                                    \
-    X(Pipe, "|", Pipe)                                                         \
-    X(LogicalAndEq, "&&=", LogicalAndEq)                                       \
-    X(LogicalAnd, "&&", LogicalAnd)                                            \
-    X(MultiplyEq, "*=", MultiplyEq)                                            \
-    X(Multiply, "*", Multiply)                                                 \
-    X(ModuloEq, "%=", ModuloEq)                                                \
-    X(Modulo, "%", Modulo)                                                     \
-    X(AmpersandEq, "&=", AmpersandEq)                                          \
-    X(Ampersand, "&", Ampersand)                                               \
-    X(CaretEq, "^=", CaretEq)                                                  \
-    X(Caret, "^", Caret)                                                       \
-    X(TildeEq, "~=", TildeEq)                                                  \
-    X(Tilde, "~", Tilde)                                                       \
-    X(EqualComparison, "==", EqualComparison)                                  \
-    X(Assignment, "=", Assignment)                                             \
-    X(NotEqualComparison, "!=", NotEqualComparison)                            \
-    X(Not, "!", Not)                                                           \
-    X(LeftBrace, "{", LeftBrace)                                               \
-    X(RightBrace, "}", RightBrace)                                             \
-    X(LeftParen, "(", LeftParen)                                               \
-    X(RightParen, ")", RightParen)                                             \
-    X(LeftBracket, "[", LeftBracket)                                           \
-    X(RightBracket, "]", RightBracket)                                         \
-    X(Scope, "::", Scope)                                                      \
-    X(Colon, ":", Colon)                                                       \
-    X(Semicolon, ";", Semicolon)                                               \
-    X(Comma, ",", Comma)                                                       \
-    X(Dot, ".", Dot)                                                           \
-    X(DotDot, "..", DotDot)                                                    \
-    X(Ellipsis, "...", Ellipsis)                                               \
-    X(EllipsisLess, "..<", EllipsisLess)                                       \
-    X(EllipsisEqual, "..=", EllipsisEqual)                                     \
-    X(QuestionMark, "?", QuestionMark)                                         \
-    X(At, "@", At)                                                             \
-    X(Dollar, "$", Dollar)                                                     \
+    X(SlashEq, "/=", CompoundSymbol)                                           \
+    X(Slash, "/", Symbol)                                                      \
+    X(LessLess, "<<", CompoundSymbol)                                          \
+    X(Spaceship, "<=>", CompoundSymbol)                                        \
+    X(LessEq, "<=", CompoundSymbol)                                            \
+    X(Less, "<", Symbol)                                                       \
+    X(GreaterGreater, ">>", CompoundSymbol)                                    \
+    X(GreaterEq, ">=", CompoundSymbol)                                         \
+    X(Greater, ">", Symbol)                                                    \
+    X(PlusPlus, "++", CompoundSymbol)                                          \
+    X(PlusEq, "+=", CompoundSymbol)                                            \
+    X(Plus, "+", Symbol)                                                       \
+    X(MinusMinus, "--", CompoundSymbol)                                        \
+    X(MinusEq, "-=", CompoundSymbol)                                           \
+    X(Arrow, "->", CompoundSymbol)                                             \
+    X(Minus, "-", Symbol)                                                      \
+    X(LogicalOr, "||", CompoundSymbol)                                         \
+    X(Pipe, "|", Symbol)                                                       \
+    X(LogicalAnd, "&&", CompoundSymbol)                                        \
+    X(MultiplyEq, "*=", CompoundSymbol)                                        \
+    X(Multiply, "*", Symbol)                                                   \
+    X(ModuloEq, "%=", CompoundSymbol)                                          \
+    X(Modulo, "%", Symbol)                                                     \
+    X(Ampersand, "&", Symbol)                                                  \
+    X(Caret, "^", Symbol)                                                      \
+    X(Tilde, "~", Symbol)                                                      \
+    X(EqualComparison, "==", CompoundSymbol)                                   \
+    X(Assignment, "=", Symbol)                                                 \
+    X(NotEqualComparison, "!=", CompoundSymbol)                                \
+    X(Not, "!", Symbol)                                                        \
+    X(LeftBrace, "{", Symbol)                                                  \
+    X(RightBrace, "}", Symbol)                                                 \
+    X(LeftParen, "(", Symbol)                                                  \
+    X(RightParen, ")", Symbol)                                                 \
+    X(LeftBracket, "[", Symbol)                                                \
+    X(RightBracket, "]", Symbol)                                               \
+    X(Scope, "::", CompoundSymbol)                                             \
+    X(Colon, ":", Symbol)                                                      \
+    X(Semicolon, ";", Symbol)                                                  \
+    X(Comma, ",", Symbol)                                                      \
+    X(Dot, ".", Symbol)                                                        \
+    X(DotDot, "..", CompoundSymbol)                                            \
+    X(Ellipsis, "...", CompoundSymbol)                                         \
+    X(EllipsisLess, "..<", CompoundSymbol)                                     \
+    X(EllipsisEqual, "..=", CompoundSymbol)                                    \
+    X(QuestionMark, "?", Symbol)                                               \
+    X(At, "@", Symbol)                                                         \
+    X(Dollar, "$", Symbol)                                                     \
     X(FloatLiteral, "Float Literal", Literal)                                  \
     X(IntLiteral, "Int Literal", Literal)                                      \
     X(StringLiteral, "String Literal", Literal)                                \
     X(CharLiteral, "Char Literal", Literal)                                    \
     X(BoolLiteral, "Bool Literal", Literal)                                    \
-    X(KwLet, "Let", Keyword)                                                   \
-    X(KwFn, "Fn", Keyword)                                                     \
-    X(KwReturn, "Return", Keyword)                                             \
-    X(Identifier, "Identifier", Identifier)
+    X(KwLet, "let", Keyword)                                                   \
+    X(KwFn, "fn", Keyword)                                                     \
+    X(KwReturn, "return", Keyword)                                             \
+    X(KwBitOr, "bitor", Keyword)                                               \
+    X(KwBitAnd, "bitand", Keyword)                                             \
+    X(KwXor, "xor", Keyword)                                                   \
+    X(KwCompl, "compl", Keyword)                                               \
+    X(KwLeftShift, "shl", Keyword)                                             \
+    X(KwRightShift, "shr", Keyword)                                            \
+    X(Identifier, "Identifier", Identifier)                                    \
+    X(Error, "(ERROR)", Unknown)                                               \
+    X(End, "(END)", Unknown)
 
 enum class TokenKind : uint8_t {
-    Error,
-    End,
 
 #define AS_ENUM(name, str, kind_class) name,
+
     TOKEN_LIST(AS_ENUM)
+
 #undef AS_ENUM
+
 };
 
 constexpr string_view to_string(TokenKind kind) {
     switch (kind) {
+
 #define AS_CASE(name, str, kind_class)                                         \
     case TokenKind::name:                                                      \
         return str;
+
         TOKEN_LIST(AS_CASE)
+
 #undef AS_CASE
-    case TokenKind::Error:
-        return "(ERROR)";
-    case TokenKind::End:
-        return "(END)";
     }
     return "(UNKNOWN)";
 }
 
-constexpr bool is_keyword(string_view sv) {
-    return sv == "let" || sv == "fn" || sv == "return";
+enum class TokenClass : uint8_t {
+    Unknown,
+    Symbol,
+    CompoundSymbol,
+    Literal,
+    Keyword,
+    Identifier
+};
+
+constexpr TokenClass get_token_class(TokenKind kind) {
+    switch (kind) {
+
+#define AS_CLASS(name, str, kind_class)                                        \
+    case TokenKind::name:                                                      \
+        return TokenClass::kind_class;
+
+        TOKEN_LIST(AS_CLASS)
+
+#undef AS_CLASS
+    }
+    return TokenClass::Unknown;
 }
 
-// right-associative check for certain tokens
-// static bool is_assign(TokenKind k) {
-//    switch (k) {
-//    case TokenKind::Assign:
-//    case TokenKind::PlusAssign:
-//    case TokenKind::MinusAssign:
-//    case TokenKind::MulAssign:
-//    case TokenKind::DivAssign:
-//    case TokenKind::ModAssign:
-//    case TokenKind::ShlAssign:
-//    case TokenKind::ShrAssign:
-//    case TokenKind::AndAssign:
-//    case TokenKind::XorAssign:
-//    case TokenKind::OrAssign:
-//        return true;
-//    }
-//    return false;
-//}
+constexpr std::vector<TokenKind> get_keywords() {
+    std::vector<TokenKind> keywords;
+
+#define AS_KEYWORD(name, str, kind_class)                                      \
+    if constexpr (TokenClass::kind_class == TokenClass::Keyword)               \
+        keywords.push_back(TokenKind::name);
+
+    TOKEN_LIST(AS_KEYWORD)
+
+#undef AS_KEYWORD
+
+    return keywords;
+}
+
+constexpr bool is_assign(TokenKind k) {
+    switch (k) {
+    case TokenKind::Assignment:
+    case TokenKind::SlashEq:
+    case TokenKind::PlusEq:
+    case TokenKind::MinusEq:
+    case TokenKind::ModuloEq:
+    case TokenKind::MultiplyEq:
+        return true;
+    }
+    return false;
+}
 
 constexpr bool is_prefix_unary(TokenKind k) {
     switch (k) {
@@ -145,33 +173,6 @@ constexpr bool is_prefix_unary(TokenKind k) {
         return false;
     }
 }
-
-// struct TokenInfo {
-//   string_view name;
-//   int precedence;
-//   bool right_associative;
-// };
-//
-// class TokenUtils {
-// public:
-//   // 静态映射表
-//   static constexpr TokenInfo get_info(TokenKind kind) {
-//     switch (kind) {
-// #d ef ine DEFINE_CASE(kind, str, prec, assoc) \
-//  case TokenKind::kind: \
-//    return {str, prec, assoc == 1};
-//       TOKEN_LIST(DEFINE_CASE)
-// #undef DEFINE_CASE
-//     default:
-//       return {"UNKNOWN", 0, false};
-//     }
-//   }
-//
-//   // 获取优先级（用于运算符爬行法/普拉特解析法）
-//   static constexpr int precedence(TokenKind kind) {
-//     return get_info(kind).precedence;
-//   }
-// };
 
 using lineno_t = int32_t;
 using colno_t = int32_t;
@@ -321,28 +322,24 @@ class Lexer {
     }
 
     Token lex_identifier() {
+
+        static std::unordered_map<string_view, TokenKind> keyword_map = []() {
+            std::unordered_map<string_view, TokenKind> m;
+            for (TokenKind const k : get_keywords()) {
+                m[to_string(k)] = k;
+            }
+            return m;
+        }();
+
         SourcePosition const start_pos = pos;
         while (!is_at_end() && is_ident_part(peek())) {
             advance();
         }
         string_view const text = get_substr_from_start(start_pos);
-        if (is_keyword(text)) {
-            if (text == "let") {
-                return {
-                    .kind = TokenKind::KwLet, .lexeme = text, .pos = start_pos};
-            }
-            if (text == "fn") {
-                return {
-                    .kind = TokenKind::KwFn, .lexeme = text, .pos = start_pos};
-            }
-            if (text == "return") {
-                return {
-                    .kind = TokenKind::KwReturn,
-                    .lexeme = text,
-                    .pos = start_pos};
-            }
-            throw runtime_error("Unknown keyword: " + string(text));
+        if (auto it = keyword_map.find(text); it != keyword_map.end()) {
+            return {.kind = it->second, .lexeme = "", .pos = start_pos};
         }
+
         return {
             .kind = TokenKind::Identifier, .lexeme = text, .pos = start_pos};
     }
@@ -418,8 +415,11 @@ class Lexer {
             for (int i = 0; i < ssize(to_string(kind)); ++i) {
                 advance();
             }
-            string_view const lexeme = get_substr_from_start(start_pos);
-            return Token(kind, lexeme, start_pos);
+            if (get_substr_from_start(start_pos) != to_string(kind)) {
+                throw runtime_error(
+                    "Internal error: lexed symbol does not match expected");
+            }
+            return Token(kind, "", start_pos);
         };
 
         char const c = peek();
@@ -435,13 +435,10 @@ class Lexer {
                 return make_token(TokenKind::Slash);
             }
 
-            // G     '<<=' '<<' '<=>' '<=' '<'
+            // G     '<<' '<=>' '<=' '<'
         case '<':
             if (peek1 == '<') {
-                if (peek2 == '=') {
-                    return make_token(TokenKind::LeftShiftEq);
-                }
-                return make_token(TokenKind::LeftShift);
+                return make_token(TokenKind::LessLess);
             } else if (peek1 == '=') {
                 if (peek2 == '>') {
                     return make_token(TokenKind::Spaceship);
@@ -451,13 +448,10 @@ class Lexer {
                 return make_token(TokenKind::Less);
             }
 
-            // G     '>>=' '>>' '>=' '>'
+            // G     '>>' '>=' '>'
         case '>':
             if (peek1 == '>') {
-                if (peek2 == '=') {
-                    return make_token(TokenKind::RightShiftEq);
-                }
-                return make_token(TokenKind::RightShift);
+                return make_token(TokenKind::GreaterGreater);
             } else if (peek1 == '=') {
                 return make_token(TokenKind::GreaterEq);
             } else {
@@ -486,28 +480,18 @@ class Lexer {
                 return make_token(TokenKind::Minus);
             }
 
-            // G     '||=' '||' '|=' '|'
+            // G     '||' '|'
         case '|':
             if (peek1 == '|') {
-                if (peek2 == '=') {
-                    return make_token(TokenKind::LogicalOrEq);
-                }
                 return make_token(TokenKind::LogicalOr);
-            } else if (peek1 == '=') {
-                return make_token(TokenKind::PipeEq);
             } else {
                 return make_token(TokenKind::Pipe);
             }
 
-            // G     '&&=' '&&' '&=' '&'
+            // G     '&&' '&'
         case '&':
             if (peek1 == '&') {
-                if (peek2 == '=') {
-                    return make_token(TokenKind::LogicalAndEq);
-                }
                 return make_token(TokenKind::LogicalAnd);
-            } else if (peek1 == '=') {
-                return make_token(TokenKind::AmpersandEq);
             } else {
                 return make_token(TokenKind::Ampersand);
             }
@@ -530,22 +514,6 @@ class Lexer {
                 return make_token(TokenKind::ModuloEq);
             } else {
                 return make_token(TokenKind::Modulo);
-            }
-
-            // G     '^=' '^'
-        case '^':
-            if (peek1 == '=') {
-                return make_token(TokenKind::CaretEq);
-            } else {
-                return make_token(TokenKind::Caret);
-            }
-
-            // G     '~=' '~'
-        case '~':
-            if (peek1 == '=') {
-                return make_token(TokenKind::TildeEq);
-            } else {
-                return make_token(TokenKind::Tilde);
             }
 
             // G     '==' '='
@@ -589,6 +557,12 @@ class Lexer {
             }
 
             //  All the other single-character tokens
+
+            // G     '^' '~'
+        case '^':
+            return make_token(TokenKind::Caret);
+        case '~':
+            return make_token(TokenKind::Tilde);
 
             // G     '{' '}' '(' ')' '[' ']' ';' ',' '?' '$'
             // G

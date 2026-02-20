@@ -93,15 +93,15 @@ constexpr int get_precedence(TokenKind kind) {
     case TokenKind::Multiply:
     case TokenKind::Slash:
     case TokenKind::Modulo:
-    case TokenKind::Ampersand:
-    case TokenKind::LeftShift:
-    case TokenKind::RightShift:
+    case TokenKind::KwBitAnd:
+    case TokenKind::KwLeftShift:
+    case TokenKind::KwRightShift:
         return 5;
     // additive
     case TokenKind::Plus:
     case TokenKind::Minus:
-    case TokenKind::Pipe:
-    case TokenKind::Caret:
+    case TokenKind::KwBitOr:
+    case TokenKind::KwXor:
         return 4;
     // relational
     case TokenKind::Less:

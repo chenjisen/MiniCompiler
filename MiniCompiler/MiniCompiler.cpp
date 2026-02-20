@@ -77,14 +77,13 @@ int main() {
         Lexer lexer(source);
         auto tokens = lexer.tokenize();
         for (auto const& token : tokens) {
-            string token_str = format("{}", token.lexeme);
-            if (auto token_kind_str = to_string(token.kind);
-                token_kind_str != token.lexeme) {
-                token_str = format("{:<10} ({})", token.lexeme, token_kind_str);
+            string token_str(to_string(token.kind));
+            if (!token.lexeme.empty()) {
+                token_str = format("{:>10}    ({})", token.lexeme, token_str);
             }
             std::println(
                 out_lex_file,
-                "{:>2}:{:>2}    {:>5}",
+                "{:>2}:{:>2}    {}",
                 token.pos.lineno,
                 token.pos.colno,
                 token_str);
