@@ -300,7 +300,7 @@ class Parser {
         if (is_prefix_unary(op)) {
             // allow repeated unary
             TokenKind const op = advance().kind;
-            auto operand       = parse_primary_expression();
+            auto operand = parse_primary_expression();
             return Expr::make(
                 UnaryExpr{.op = op, .operand = std::move(operand)});
         }
@@ -314,7 +314,7 @@ class Parser {
         auto left = parse_unary_expression();
 
         while (true) {
-            TokenKind const op   = peek().kind;
+            TokenKind const op = peek().kind;
             int const precedence = get_precedence(op);
             // 如果当前运算符优先级低于门槛，或者不是运算符，则停止
             if (precedence < min_precedence) {
@@ -325,11 +325,11 @@ class Parser {
 
             // 递归解析右操作数，使用当前优先级 + 1（左结合）
             auto right = parse_binary_expression(precedence + 1);
-            left       = Expr::make(
+            left = Expr::make(
                 BinaryExpr{
-                          .op    = op,
-                          .left  = std::move(left),
-                          .right = std::move(right)});
+                    .op = op,
+                    .left = std::move(left),
+                    .right = std::move(right)});
         }
         return left;
     }

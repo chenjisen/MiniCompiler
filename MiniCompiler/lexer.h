@@ -174,13 +174,13 @@ constexpr bool is_prefix_unary(TokenKind k) {
 // };
 
 using lineno_t = int32_t;
-using colno_t  = int32_t;
-using index_t  = int32_t;
+using colno_t = int32_t;
+using index_t = int32_t;
 
 struct SourcePosition {
     lineno_t lineno = 1; // one-based offset into program source
-    colno_t colno   = 1; // one-based offset into line
-    index_t index   = 0;
+    colno_t colno = 1;   // one-based offset into line
+    index_t index = 0;
 
     SourcePosition() = default;
 
@@ -337,9 +337,9 @@ class Lexer {
             }
             if (text == "return") {
                 return {
-                    .kind   = TokenKind::KwReturn,
+                    .kind = TokenKind::KwReturn,
                     .lexeme = text,
-                    .pos    = start_pos};
+                    .pos = start_pos};
             }
             throw runtime_error("Unknown keyword: " + string(text));
         }
@@ -402,9 +402,9 @@ class Lexer {
                 string_view const content = get_substr_from_start(start_pos);
                 advance(); // 消费闭引号
                 return {
-                    .kind   = TokenKind::StringLiteral,
+                    .kind = TokenKind::StringLiteral,
                     .lexeme = content,
-                    .pos    = start_pos};
+                    .pos = start_pos};
             }
             advance();
         }
@@ -422,7 +422,7 @@ class Lexer {
             return Token(kind, lexeme, start_pos);
         };
 
-        char const c     = peek();
+        char const c = peek();
         char const peek1 = peek(1);
         char const peek2 = peek(2);
 
@@ -620,9 +620,9 @@ class Lexer {
                 "Unexpected character: " + string(source.substr(pos.index, 1)) +
                 " at pos " + pos.to_string());
             return {
-                .kind   = TokenKind::Error,
+                .kind = TokenKind::Error,
                 .lexeme = source.substr(pos.index, 1),
-                .pos    = pos};
+                .pos = pos};
         }
     }
 };
