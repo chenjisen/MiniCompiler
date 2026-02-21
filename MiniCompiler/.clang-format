@@ -5,16 +5,19 @@ BasedOnStyle: LLVM
 IndentWidth: 4
 PointerAlignment: Left
 QualifierAlignment: Right
-BinPackArguments: false
-BinPackParameters: false
-AlignAfterOpenBracket: AlwaysBreak
 
 IncludeBlocks: Regroup
 LineEnding: LF
-SeparateDefinitionBlocks: Always
-WrapNamespaceBodyWithEmptyLines: Always
-BreakAfterAttributes: Always
 
+AlignAfterOpenBracket: AlwaysBreak
 AlignArrayOfStructures: Right
 AlignConsecutiveShortCaseStatements:
   Enabled: true
+BinPackArguments: false
+BinPackParameters: false
+BreakAfterAttributes: Always
+KeepEmptyLines:
+  AtStartOfBlock: false
+  AtStartOfFile: false
+SeparateDefinitionBlocks: Always
+WrapNamespaceBodyWithEmptyLines: Always

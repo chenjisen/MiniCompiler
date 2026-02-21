@@ -38,17 +38,17 @@ string read_file(std::filesystem::path const& path) {
 int main() {
     using namespace mini_compiler;
     string const source = R"(
-    let x: int = 123;
+    let x: int = { let a: int = 2; let b: int = 3; a * b };  // x = 6
     let y: int = 1 + 2 * 3 - 4 / 2;
 
     fn foo(a: int, b: float) -> bool {
         let s: string = "hi\n";
-        x = 1;
+        x = { return 5; 6 };
         print(s);
         return !(a!=0) && (x > 5);
     }
     fn calc(a: int, b: int, c: int) -> int {
-        return -c + a * b + 10;
+        -c + a * b + 10
     }
 
     let count: int = 0;

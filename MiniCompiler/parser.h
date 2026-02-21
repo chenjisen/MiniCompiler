@@ -99,8 +99,9 @@ struct AssignExpr {
     ExprPtr rhs;
 };
 
-struct Block {
-    vector<StmtPtr> stmts;
+struct BlockExpr {
+    vector<StmtPtr> statements;
+    optional<ExprPtr> final_expr;
 };
 
 struct VarDecl {
@@ -118,7 +119,7 @@ struct FunctionDecl {
     Identifier name;
     vector<Param> params;
     Type return_type;
-    Block body;
+    BlockExpr body;
 };
 
 struct Expr {
@@ -130,7 +131,8 @@ struct Expr {
         PrefixExpr,
         PostfixExpr,
         ReturnExpr,
-        AssignExpr>;
+        AssignExpr,
+        BlockExpr>;
     Node node;
 
     template <typename T> static ExprPtr make(T&& value) {
@@ -296,6 +298,11 @@ class Parser {
             return expr;
         }
 
+        // 新增：块表达式作为 primary
+        if (match(TokenKind::LeftBrace)) {
+            return Expr::make(parse_block_expression());
+        }
+
         if (match(TokenKind::Identifier)) {
             return parse_call_expression();
         }
@@ -305,7 +312,6 @@ class Parser {
 
     // parse unary operators
     ExprPtr parse_unary_expression() {
-
         // 前缀一元运算符（可连续）
         if (is_prefix_unary(peek().kind)) {
             TokenKind const op = advance().kind;
@@ -344,9 +350,7 @@ class Parser {
             auto right = parse_binary_expression(precedence + 1);
             left = Expr::make(
                 BinaryExpr{
-                    .op = op,
-                    .lhs = std::move(left),
-                    .rhs = std::move(right)});
+                    .op = op, .lhs = std::move(left), .rhs = std::move(right)});
         }
         return left;
     }
@@ -356,7 +360,8 @@ class Parser {
         auto lhs = parse_binary_expression(0);
         if (accept(TokenKind::Assignment)) {
             auto rhs = parse_assignment_expression();
-            return Expr::make(AssignExpr{std::move(lhs), std::move(rhs)});
+            return Expr::make(
+                AssignExpr{.lhs = std::move(lhs), .rhs = std::move(rhs)});
         }
         return lhs;
     }
@@ -371,7 +376,7 @@ class Parser {
         return Expr::make(ReturnExpr{std::move(value)});
     }
 
-ExprPtr parse_expression() {
+    ExprPtr parse_expression() {
         // 处理 return 表达式
         if (match(TokenKind::KwReturn)) {
             return parse_return_expression();
@@ -379,15 +384,35 @@ ExprPtr parse_expression() {
         return parse_assignment_expression();
     }
 
-    // block = "{" { stmt } "}"
-    Block parse_block() {
-        expect(TokenKind::LeftBrace, "before function body");
+    // block_expression = "{" [statement*] [expression] "}"
+    BlockExpr parse_block_expression() {
+        expect(TokenKind::LeftBrace, "start of block");
         vector<StmtPtr> stmts;
+        optional<ExprPtr> final_expr;
+
         while (!match(TokenKind::RightBrace) && !match(TokenKind::End)) {
-            stmts.push_back(parse_statement());
+            // 尝试解析声明语句
+            if (match(TokenKind::KwLet) || match(TokenKind::KwFn)) {
+                stmts.push_back(parse_statement()); // 声明语句自带分号
+            } else {
+                // 可能是表达式语句或最终表达式
+                auto expr = parse_expression(); // 解析一个表达式（不含分号）
+
+                if (accept(TokenKind::Semicolon)) {
+                    // 消费分号，构成表达式语句
+                    stmts.push_back(Stmt::make(ExprStmt{std::move(expr)}));
+                } else {
+                    // 没有分号，则这是块的最终表达式
+                    final_expr = std::move(expr);
+                    break; // 结束块解析
+                }
+            }
         }
-        expect(TokenKind::RightBrace, "after function body");
-        return {std::move(stmts)};
+
+        expect(TokenKind::RightBrace, "end of block");
+        return {
+            .statements = std::move(stmts),
+            .final_expr = std::move(final_expr)};
     }
 
     // --- Declarations, Statements ---
@@ -421,14 +446,12 @@ ExprPtr parse_expression() {
         }
         expect(TokenKind::RightParen, "after parameters");
 
-        // Default return type is unit
-        Type return_type = {
-            .built_in_type = BuiltInType::Unit, .name = {"return"}};
+        Type return_type{.built_in_type = BuiltInType::Unit, .name = "unit"};
         if (accept(TokenKind::Arrow)) {
             return_type = parse_type();
         }
 
-        auto body = parse_block();
+        auto body = parse_block_expression();
         return Stmt::make(FunctionDecl(
             name, std::move(params), return_type, std::move(body)));
     }
@@ -574,12 +597,21 @@ class ParseTreePrinter {
         dedent();
     }
 
-    void print(Block const& block) {
+    void print(BlockExpr const& block) {
+        out << "{\n";
         indent();
-        for (auto const& stmt : block.stmts) {
+        for (auto const& stmt : block.statements) {
             print(*stmt);
         }
+        if (block.final_expr) {
+            print_indent();
+            out << "final: ";
+            print(**block.final_expr);
+            out << "\n";
+        }
         dedent();
+        print_indent();
+        out << "}";
     }
 
     // 表达式节点

@@ -101,7 +101,6 @@ enum class TokenKind : uint8_t {
 
 constexpr string_view to_string(TokenKind kind) {
     switch (kind) {
-
 #define AS_CASE(name, str, kind_class)                                         \
     case TokenKind::name:                                                      \
         return str;
@@ -124,7 +123,6 @@ enum class TokenClass : uint8_t {
 
 constexpr TokenClass get_token_class(TokenKind kind) {
     switch (kind) {
-
 #define AS_CLASS(name, str, kind_class)                                        \
     case TokenKind::name:                                                      \
         return TokenClass::kind_class;
@@ -370,7 +368,6 @@ class Lexer {
     }
 
     Token lex_identifier() {
-
         static std::unordered_map<string_view, TokenKind> keyword_map = []() {
             std::unordered_map<string_view, TokenKind> m;
             for (TokenKind const k : get_keywords()) {
