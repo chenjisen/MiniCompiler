@@ -174,6 +174,54 @@ constexpr bool is_prefix_unary(TokenKind k) {
     }
 }
 
+constexpr bool is_postfix_unary(TokenKind kind) {
+    switch (kind) {
+    case TokenKind::KwBitOr:
+    case TokenKind::KwBitAnd:
+    case TokenKind::KwXor:
+    case TokenKind::KwCompl:
+        return true;
+    default:
+        return false;
+    }
+}
+
+// higher number -> tighter binding
+// chosen numbers are illustrative; adjust if needed
+constexpr int get_precedence(TokenKind kind) {
+    switch (kind) {
+    // multiplicative
+    case TokenKind::Multiply:
+    case TokenKind::Slash:
+    case TokenKind::Modulo:
+    case TokenKind::KwBitAnd:
+    case TokenKind::KwLeftShift:
+    case TokenKind::KwRightShift:
+        return 5;
+    // additive
+    case TokenKind::Plus:
+    case TokenKind::Minus:
+    case TokenKind::KwBitOr:
+    case TokenKind::KwXor:
+        return 4;
+    // relational
+    case TokenKind::Less:
+    case TokenKind::LessEq:
+    case TokenKind::Greater:
+    case TokenKind::GreaterEq:
+    case TokenKind::EqualComparison:
+    case TokenKind::NotEqualComparison:
+        return 3;
+    // logical && ||
+    case TokenKind::LogicalAnd:
+        return 2;
+    case TokenKind::LogicalOr:
+        return 1;
+    default:
+        return -1; // 不是二元运算符
+    }
+}
+
 using lineno_t = int32_t;
 using colno_t = int32_t;
 using index_t = int32_t;

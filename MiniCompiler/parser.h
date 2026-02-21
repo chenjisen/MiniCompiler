@@ -69,7 +69,12 @@ struct LiteralExpr {
     string_view value;
 };
 
-struct UnaryExpr {
+struct PrefixExpr {
+    TokenKind op;
+    ExprPtr operand;
+};
+
+struct PostfixExpr {
     TokenKind op;
     ExprPtr operand;
 };
@@ -84,42 +89,6 @@ struct CallExpr {
     Identifier callee;
     vector<ExprPtr> args;
 };
-
-// higher number -> tighter binding
-// chosen numbers are illustrative; adjust if needed
-constexpr int get_precedence(TokenKind kind) {
-    switch (kind) {
-    // multiplicative
-    case TokenKind::Multiply:
-    case TokenKind::Slash:
-    case TokenKind::Modulo:
-    case TokenKind::KwBitAnd:
-    case TokenKind::KwLeftShift:
-    case TokenKind::KwRightShift:
-        return 5;
-    // additive
-    case TokenKind::Plus:
-    case TokenKind::Minus:
-    case TokenKind::KwBitOr:
-    case TokenKind::KwXor:
-        return 4;
-    // relational
-    case TokenKind::Less:
-    case TokenKind::LessEq:
-    case TokenKind::Greater:
-    case TokenKind::GreaterEq:
-    case TokenKind::EqualComparison:
-    case TokenKind::NotEqualComparison:
-        return 3;
-    // logical && ||
-    case TokenKind::LogicalAnd:
-        return 2;
-    case TokenKind::LogicalOr:
-        return 1;
-    default:
-        return -1; // 不是二元运算符
-    }
-}
 
 struct VarDecl {
     Identifier name;
@@ -140,6 +109,10 @@ struct Block {
     vector<StmtPtr> stmts;
 };
 
+struct ExprStmt {
+    ExprPtr expr;
+};
+
 struct CallStmt {
     CallExpr call;
 };
@@ -157,8 +130,13 @@ struct FunctionDecl {
 };
 
 struct Expr {
-    using Node =
-        std::variant<Identifier, LiteralExpr, CallExpr, BinaryExpr, UnaryExpr>;
+    using Node = std::variant<
+        Identifier,
+        LiteralExpr,
+        CallExpr,
+        BinaryExpr,
+        PrefixExpr,
+        PostfixExpr>;
     Node node;
 
     template <typename T> static ExprPtr make(T&& value) {
@@ -167,8 +145,13 @@ struct Expr {
 };
 
 struct Stmt {
-    using Node =
-        std::variant<ReturnStmt, AssignStmt, CallStmt, VarDecl, FunctionDecl>;
+    using Node = std::variant<
+        ReturnStmt,
+        AssignStmt,
+        CallStmt,
+        ExprStmt,
+        VarDecl,
+        FunctionDecl>;
     Node node;
 
     template <typename T> static StmtPtr make(T&& value) {
@@ -295,17 +278,25 @@ class Parser {
 
     // parse unary prefix operators
     ExprPtr parse_unary_expression() {
-        // consider which tokens are prefix unary in your language
-        TokenKind const op = peek().kind;
-        if (is_prefix_unary(op)) {
-            // allow repeated unary
+        // 1. 处理前缀一元（可连续）
+        if (is_prefix_unary(peek().kind)) {
             TokenKind const op = advance().kind;
-            auto operand = parse_primary_expression();
+            auto operand = parse_unary_expression();
             return Expr::make(
-                UnaryExpr{.op = op, .operand = std::move(operand)});
+                PrefixExpr{.op = op, .operand = std::move(operand)});
         }
-        // otherwise primary/postfix
-        return parse_primary_expression();
+
+        // 2. 解析基础表达式（primary）
+        auto expr = parse_primary_expression();
+
+        // 3. 循环处理后缀一元（可连续）
+        while (is_postfix_unary(peek().kind)) {
+            TokenKind op = advance().kind;
+            expr =
+                Expr::make(PostfixExpr{.op = op, .operand = std::move(expr)});
+        }
+
+        return expr;
     }
 
     // The core precedence-climbing routine:
@@ -438,6 +429,13 @@ class Parser {
         return {std::move(stmts)};
     }
 
+    StmtPtr parse_expression_statement() {
+        auto expr = parse_expression();
+        expect(TokenKind::Semicolon, "after expression statement");
+        // 将表达式包装为语句，需要新增一个 ExprStmt 节点
+        return Stmt::make(ExprStmt{std::move(expr)});
+    }
+
     // assignment_stmt = expression "=" expression ";"
     StmtPtr parse_assignment_stmt() {
         // Lookahead(1) is '=' -> Assignment Statement
@@ -471,14 +469,14 @@ class Parser {
     // stmt = var_declaration | return_stmt | assignment_stmt |
     // function_call_stmt
     StmtPtr parse_stmt() {
+        // 先处理以关键字开头的语句
         if (match(TokenKind::KwLet)) {
             return parse_var_decl();
         }
         if (match(TokenKind::KwReturn)) {
             return parse_return_stmt();
         }
-
-        // must start with identifier for assignment/call
+        // 处理以标识符开头的语句（可能是赋值、调用）
         if (match(TokenKind::Identifier)) {
             // 关键消歧义逻辑： Identifier 可能是 Assignment 或者是
             // FunctionCall(ExprStmt)
@@ -490,7 +488,8 @@ class Parser {
                 return parse_call_stmt();
             }
         }
-        throw error("expected statement");
+        // 其他情况可作为表达式语句
+        return parse_expression_statement();
     }
 };
 
@@ -590,6 +589,14 @@ class ParseTreePrinter {
         out << "\n";
     }
 
+    void print(ExprStmt const& node) {
+        print_indent();
+        out << "ExprStmt\n";
+        indent();
+        print(*node.expr);
+        out << "\n";
+    }
+
     void print(VarDecl const& node) {
         print_indent();
         out << "VarDecl " << node.name.name << ": "
@@ -657,7 +664,7 @@ class ParseTreePrinter {
         out << " )";
     }
 
-    void print(UnaryExpr const& un) {
+    void print(PrefixExpr const& un) {
         out << "(" << to_string(un.op);
         print(*un.operand);
         out << ")";
@@ -669,6 +676,12 @@ class ParseTreePrinter {
         out << " " << to_string(bin.op) << " ";
         print(*bin.right);
         out << ")";
+    }
+
+    void print(PostfixExpr const& node) {
+        out << "(";
+        print(*node.operand);
+        out << to_string(node.op) << ")";
     }
 
     static std::string_view type_to_string(Type const& type) {

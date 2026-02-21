@@ -57,12 +57,23 @@ int main() {
         return count;  // simplified
     }
 
+    fn test() {
+        let a: int = -5;
+        let b: int = - -10;
+        let flag: bool = !true;
+        let x: int = 1 + 2 * 3;
+        x = x + 1;
+        print(x);
+        return;
+    }
+
     fn main() {
         foo(2 - 3, 3.14 * 2);
         x = add(x, 20, 10);
         print("x: ", x);
         let result: int = increment(5);
         print("Result: ", result);
+        test();
         print("Done");
     }
     )";
