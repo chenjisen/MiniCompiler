@@ -81,8 +81,8 @@ struct PostfixExpr {
 
 struct BinaryExpr {
     TokenKind op;
-    ExprPtr left;
-    ExprPtr right;
+    ExprPtr lhs;
+    ExprPtr rhs;
 };
 
 struct CallExpr {
@@ -90,31 +90,23 @@ struct CallExpr {
     vector<ExprPtr> args;
 };
 
-struct VarDecl {
-    Identifier name;
-    Type type;
-    optional<ExprPtr> init;
-};
-
-struct ReturnStmt {
+struct ReturnExpr {
     optional<ExprPtr> value;
 };
 
-struct AssignStmt {
-    ExprPtr left;
-    ExprPtr right;
+struct AssignExpr {
+    ExprPtr lhs;
+    ExprPtr rhs;
 };
 
 struct Block {
     vector<StmtPtr> stmts;
 };
 
-struct ExprStmt {
-    ExprPtr expr;
-};
-
-struct CallStmt {
-    CallExpr call;
+struct VarDecl {
+    Identifier name;
+    Type type;
+    optional<ExprPtr> init;
 };
 
 struct Param {
@@ -136,7 +128,9 @@ struct Expr {
         CallExpr,
         BinaryExpr,
         PrefixExpr,
-        PostfixExpr>;
+        PostfixExpr,
+        ReturnExpr,
+        AssignExpr>;
     Node node;
 
     template <typename T> static ExprPtr make(T&& value) {
@@ -144,14 +138,12 @@ struct Expr {
     }
 };
 
+struct ExprStmt {
+    ExprPtr expr;
+};
+
 struct Stmt {
-    using Node = std::variant<
-        ReturnStmt,
-        AssignStmt,
-        CallStmt,
-        ExprStmt,
-        VarDecl,
-        FunctionDecl>;
+    using Node = std::variant<ExprStmt, VarDecl, FunctionDecl>;
     Node node;
 
     template <typename T> static StmtPtr make(T&& value) {
@@ -160,7 +152,7 @@ struct Stmt {
 };
 
 struct Program {
-    vector<StmtPtr> declarations;
+    vector<StmtPtr> statements;
 };
 
 // ==========================================
@@ -174,7 +166,7 @@ class Parser {
     Program parse() {
         Program program;
         while (!match(TokenKind::End)) {
-            program.declarations.push_back(parse_declaration());
+            program.statements.push_back(parse_statement());
         }
         return program;
     }
@@ -276,9 +268,45 @@ class Parser {
 
     // --- Expressions ---
 
-    // parse unary prefix operators
+    // Identifier or Function Call
+    ExprPtr parse_call_expression() {
+        Identifier const name = parse_identifier();
+
+        // function_call starts with Ident "(" ... ")"
+        if (!accept(TokenKind::LeftParen)) {
+            return Expr::make(name);
+        }
+
+        vector<ExprPtr> args;
+        if (!match(TokenKind::RightParen)) {
+            do {
+                args.push_back(parse_expression());
+            } while (accept(TokenKind::Comma));
+        }
+        expect(TokenKind::RightParen, "after arguments");
+        return Expr::make(CallExpr(name, std::move(args)));
+    }
+
+    // primary = identifier | literal | function_call | "(" expression ")"
+    ExprPtr parse_primary_expression() {
+        if (accept(TokenKind::LeftParen)) {
+            // parse any expression inside parentheses
+            auto expr = parse_expression();
+            expect(TokenKind::RightParen, "after expression");
+            return expr;
+        }
+
+        if (match(TokenKind::Identifier)) {
+            return parse_call_expression();
+        }
+
+        return Expr::make(parse_literal());
+    }
+
+    // parse unary operators
     ExprPtr parse_unary_expression() {
-        // 1. 处理前缀一元（可连续）
+
+        // 前缀一元运算符（可连续）
         if (is_prefix_unary(peek().kind)) {
             TokenKind const op = advance().kind;
             auto operand = parse_unary_expression();
@@ -286,12 +314,12 @@ class Parser {
                 PrefixExpr{.op = op, .operand = std::move(operand)});
         }
 
-        // 2. 解析基础表达式（primary）
+        // 基础表达式（primary）
         auto expr = parse_primary_expression();
 
-        // 3. 循环处理后缀一元（可连续）
+        // 后缀一元运算符（可连续）
         while (is_postfix_unary(peek().kind)) {
-            TokenKind op = advance().kind;
+            TokenKind const op = advance().kind;
             expr =
                 Expr::make(PostfixExpr{.op = op, .operand = std::move(expr)});
         }
@@ -311,68 +339,69 @@ class Parser {
             if (precedence < min_precedence) {
                 break;
             }
-
             advance(); // consume operator
-
             // 递归解析右操作数，使用当前优先级 + 1（左结合）
             auto right = parse_binary_expression(precedence + 1);
             left = Expr::make(
                 BinaryExpr{
                     .op = op,
-                    .left = std::move(left),
-                    .right = std::move(right)});
+                    .lhs = std::move(left),
+                    .rhs = std::move(right)});
         }
         return left;
     }
 
-    // primary = identifier | literal | function_call | "(" expression ")"
-    ExprPtr parse_primary_expression() {
-        if (accept(TokenKind::LeftParen)) {
-            // parse any expression inside parentheses
-            auto expr = parse_expression();
-            expect(TokenKind::RightParen, "after expression");
-            return expr;
+    // assignment_expr = expression "=" expression ";"
+    ExprPtr parse_assignment_expression() {
+        auto lhs = parse_binary_expression(0);
+        if (accept(TokenKind::Assignment)) {
+            auto rhs = parse_assignment_expression();
+            return Expr::make(AssignExpr{std::move(lhs), std::move(rhs)});
         }
-
-        // Identifier or Function Call
-        if (match(TokenKind::Identifier)) {
-            // function_call starts with Ident "(" ... ")"
-            if (match(TokenKind::LeftParen, 1)) {
-                return parse_call_expression();
-            }
-            return Expr::make(parse_identifier());
-        }
-
-        LiteralExpr lit = parse_literal();
-        return Expr::make(lit);
+        return lhs;
     }
 
-    ExprPtr parse_call_expression() {
+    // return_expr = "return" [ expression ] ";"
+    ExprPtr parse_return_expression() {
+        expect(TokenKind::KwReturn);
+        optional<ExprPtr> value;
+        if (!match(TokenKind::Semicolon)) {
+            value = parse_expression();
+        }
+        return Expr::make(ReturnExpr{std::move(value)});
+    }
+
+ExprPtr parse_expression() {
+        // 处理 return 表达式
+        if (match(TokenKind::KwReturn)) {
+            return parse_return_expression();
+        }
+        return parse_assignment_expression();
+    }
+
+    // block = "{" { stmt } "}"
+    Block parse_block() {
+        expect(TokenKind::LeftBrace, "before function body");
+        vector<StmtPtr> stmts;
+        while (!match(TokenKind::RightBrace) && !match(TokenKind::End)) {
+            stmts.push_back(parse_statement());
+        }
+        expect(TokenKind::RightBrace, "after function body");
+        return {std::move(stmts)};
+    }
+
+    // --- Declarations, Statements ---
+
+    // var_declaration = "let" ident ":" type "=" expression ";"
+    StmtPtr parse_var_declaration() {
+        expect(TokenKind::KwLet);
         Identifier const name = parse_identifier();
-        expect(TokenKind::LeftParen, "after function name");
-        vector<ExprPtr> args;
-        if (!match(TokenKind::RightParen)) {
-            do {
-                args.push_back(parse_expression());
-            } while (accept(TokenKind::Comma));
-        }
-        expect(TokenKind::RightParen, "after arguments");
-        return Expr::make(CallExpr(name, std::move(args)));
-    }
-
-    ExprPtr parse_expression() { return parse_binary_expression(0); }
-
-    // --- Declarations ---
-
-    // declaration = var_declaration | function_declaration
-    StmtPtr parse_declaration() {
-        if (match(TokenKind::KwLet)) {
-            return parse_var_decl();
-        }
-        if (match(TokenKind::KwFn)) {
-            return parse_function_declaration();
-        }
-        throw error("Expected declaration");
+        expect(TokenKind::Colon, "after variable name");
+        Type const type = parse_type();
+        expect(TokenKind::Assignment, "in variable declaration");
+        auto init = parse_expression();
+        expect(TokenKind::Semicolon, "after variable declaration");
+        return Stmt::make(VarDecl(name, type, std::move(init)));
     }
 
     // function_declaration = "fn" ident "(" [param_list] ")" ["->" type] block
@@ -404,31 +433,7 @@ class Parser {
             name, std::move(params), return_type, std::move(body)));
     }
 
-    // var_declaration = "let" ident ":" type "=" expression ";"
-    StmtPtr parse_var_decl() {
-        expect(TokenKind::KwLet);
-        Identifier const name = parse_identifier();
-        expect(TokenKind::Colon, "after variable name");
-        Type const type = parse_type();
-        expect(TokenKind::Assignment, "in variable declaration");
-        auto init = parse_expression();
-        expect(TokenKind::Semicolon, "after variable declaration");
-        return Stmt::make(VarDecl(name, type, std::move(init)));
-    }
-
-    // --- Statements ---
-
-    // block = "{" { stmt } "}"
-    Block parse_block() {
-        expect(TokenKind::LeftBrace, "before function body");
-        vector<StmtPtr> stmts;
-        while (!match(TokenKind::RightBrace) && !match(TokenKind::End)) {
-            stmts.push_back(parse_stmt());
-        }
-        expect(TokenKind::RightBrace, "after function body");
-        return {std::move(stmts)};
-    }
-
+    // expression_statement = expression ";"
     StmtPtr parse_expression_statement() {
         auto expr = parse_expression();
         expect(TokenKind::Semicolon, "after expression statement");
@@ -436,59 +441,14 @@ class Parser {
         return Stmt::make(ExprStmt{std::move(expr)});
     }
 
-    // assignment_stmt = expression "=" expression ";"
-    StmtPtr parse_assignment_stmt() {
-        // Lookahead(1) is '=' -> Assignment Statement
-        auto lhs = parse_expression();
-        expect(TokenKind::Assignment, "in assignment");
-        auto rhs = parse_expression();
-        expect(TokenKind::Semicolon, "after assignment");
-        return Stmt::make(AssignStmt(std::move(lhs), std::move(rhs)));
-    }
-
-    // function_call_stmt = function_call ";"
-    // Here we already consumed callee ident and saw '('
-    StmtPtr parse_call_stmt() {
-        auto call = parse_call_expression();
-        expect(TokenKind::Semicolon, "after call statement");
-        CallExpr callee = std::move(std::get<CallExpr>(call->node));
-        return Stmt::make(CallStmt(std::move(callee)));
-    }
-
-    // return_stmt = "return" [ expression ] ";"
-    StmtPtr parse_return_stmt() {
-        expect(TokenKind::KwReturn);
-        optional<ExprPtr> value;
-        if (!match(TokenKind::Semicolon)) {
-            value = parse_expression();
-        }
-        expect(TokenKind::Semicolon, "after return");
-        return Stmt::make(ReturnStmt(std::move(value)));
-    }
-
-    // stmt = var_declaration | return_stmt | assignment_stmt |
-    // function_call_stmt
-    StmtPtr parse_stmt() {
-        // 先处理以关键字开头的语句
+    // stmt = var_declaration | function_declaration | expression_statement
+    StmtPtr parse_statement() {
         if (match(TokenKind::KwLet)) {
-            return parse_var_decl();
+            return parse_var_declaration();
         }
-        if (match(TokenKind::KwReturn)) {
-            return parse_return_stmt();
+        if (match(TokenKind::KwFn)) {
+            return parse_function_declaration();
         }
-        // 处理以标识符开头的语句（可能是赋值、调用）
-        if (match(TokenKind::Identifier)) {
-            // 关键消歧义逻辑： Identifier 可能是 Assignment 或者是
-            // FunctionCall(ExprStmt)
-            if (match(TokenKind::Assignment, 1)) {
-                return parse_assignment_stmt();
-            }
-            // Expression Statement (mostly function calls)
-            if (match(TokenKind::LeftParen, 1)) {
-                return parse_call_stmt();
-            }
-        }
-        // 其他情况可作为表达式语句
         return parse_expression_statement();
     }
 };
@@ -532,7 +492,7 @@ class ParseTreePrinter {
     void print(Program const& prog) {
         out << "Program\n";
         indent();
-        for (auto const& stmt : prog.declarations) {
+        for (auto const& stmt : prog.statements) {
             print(*stmt);
         }
         dedent();
@@ -560,39 +520,25 @@ class ParseTreePrinter {
         }
     }
 
-    // 语句节点
-    void print(ReturnStmt const& node) {
-        print_indent();
-        out << "ReturnStmt";
+    void print(ReturnExpr const& node) {
+        out << "return";
         if (node.value.has_value()) {
             out << " ";
             print(**node.value);
         } else {
             out << " (void)";
         }
-        out << "\n";
     }
 
-    void print(AssignStmt const& node) {
-        print_indent();
-        out << "AssignStmt ";
-        print(*node.left);
+    void print(AssignExpr const& node) {
+        print(*node.lhs);
         out << " = ";
-        print(*node.right);
-        out << "\n";
-    }
-
-    void print(CallStmt const& node) {
-        print_indent();
-        out << "CallStmt ";
-        print(node.call);
-        out << "\n";
+        print(*node.rhs);
     }
 
     void print(ExprStmt const& node) {
         print_indent();
-        out << "ExprStmt\n";
-        indent();
+        out << "ExprStmt ";
         print(*node.expr);
         out << "\n";
     }
@@ -672,9 +618,9 @@ class ParseTreePrinter {
 
     void print(BinaryExpr const& bin) {
         out << "(";
-        print(*bin.left);
+        print(*bin.lhs);
         out << " " << to_string(bin.op) << " ";
-        print(*bin.right);
+        print(*bin.rhs);
         out << ")";
     }
 

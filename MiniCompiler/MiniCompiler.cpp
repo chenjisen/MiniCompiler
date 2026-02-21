@@ -101,7 +101,7 @@ int main() {
         }
         Parser parser(tokens);
         Program const prog = parser.parse();
-        std::cout << "Parsed OK. decls=" << prog.declarations.size() << "\n";
+        std::cout << "Parsed OK. Statements=" << prog.statements.size() << "\n";
 
         std::ofstream out_parser_file(
             "out/parser.txt", std::ios::out | std::ios::binary);
