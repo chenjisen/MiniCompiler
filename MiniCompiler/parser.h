@@ -1,3 +1,6 @@
+// Copyright 2026 Chen Jisen. All rights reserved.
+// parser.h
+
 #pragma once
 
 #include "lexer.h"
@@ -104,6 +107,23 @@ struct BlockExpr {
     optional<ExprPtr> final_expr;
 };
 
+struct IfExpr {
+    ExprPtr condition;
+    BlockExpr then_block;
+    std::optional<ExprPtr> else_expr;
+};
+
+struct WhileExpr {
+    ExprPtr condition;
+    BlockExpr body;
+};
+
+struct ForExpr {
+    Identifier loop_var;
+    ExprPtr iter_expr;
+    BlockExpr body;
+};
+
 struct VarDecl {
     Identifier name;
     Type type;
@@ -132,7 +152,10 @@ struct Expr {
         PostfixExpr,
         ReturnExpr,
         AssignExpr,
-        BlockExpr>;
+        BlockExpr,
+        IfExpr,
+        WhileExpr,
+        ForExpr>;
     Node node;
 
     template <typename T> static ExprPtr make(T&& value) {
@@ -289,6 +312,56 @@ class Parser {
         return Expr::make(CallExpr(name, std::move(args)));
     }
 
+    ExprPtr parse_if_expression() {
+        expect(TokenKind::KwIf);             // 消费 'if'
+        auto condition = parse_expression(); // 条件表达式（Rust 中不加括号）
+        auto then_block = parse_block_expression(); // 解析 then 块
+
+        std::optional<ExprPtr> else_block;
+        if (accept(TokenKind::KwElse)) {
+            if (match(TokenKind::KwIf)) {
+                else_block = parse_if_expression();
+            } else {
+                else_block = Expr::make(parse_block_expression());
+            }
+        }
+
+        return Expr::make(
+            IfExpr{
+                .condition = std::move(condition),
+                .then_block = std::move(then_block),
+                .else_expr = std::move(else_block)});
+    }
+
+    ExprPtr parse_while_expression() {
+        expect(TokenKind::KwWhile);
+        auto condition = parse_expression();
+        auto body = parse_block_expression();
+        return Expr::make(
+            WhileExpr{
+                .condition = std::move(condition), .body = std::move(body)});
+    }
+
+    ExprPtr parse_for_expression() {
+        expect(TokenKind::KwFor);
+        // 解析循环变量（标识符）
+        if (!match(TokenKind::Identifier)) {
+            throw error("expected identifier after 'for'");
+        }
+        Identifier loop_var = parse_identifier();
+        // 消费 'in'
+        expect(TokenKind::KwIn, "after loop variable");
+        // 解析迭代表达式
+        auto iter_expr = parse_expression();
+        // 解析循环体（块）
+        auto body = parse_block_expression();
+        return Expr::make(
+            ForExpr{
+                .loop_var = loop_var,
+                .iter_expr = std::move(iter_expr),
+                .body = std::move(body)});
+    }
+
     // primary = identifier | literal | function_call | "(" expression ")"
     ExprPtr parse_primary_expression() {
         if (accept(TokenKind::LeftParen)) {
@@ -303,8 +376,24 @@ class Parser {
             return Expr::make(parse_block_expression());
         }
 
+        // 控制流表达式
+        if (match(TokenKind::KwIf)) {
+            return parse_if_expression();
+        }
+        if (match(TokenKind::KwWhile)) {
+            return parse_while_expression();
+        }
+        if (match(TokenKind::KwFor)) {
+            return parse_for_expression();
+        }
+
+        // return 表达式（也可以放在这里，或者继续放在 parse_expression 入口）
+        if (match(TokenKind::KwReturn)) {
+            return parse_return_expression();
+        }
+
         if (match(TokenKind::Identifier)) {
-            return parse_call_expression();
+            return parse_call_expression(); // 可能是标识符或函数调用
         }
 
         return Expr::make(parse_literal());
@@ -391,20 +480,21 @@ class Parser {
         optional<ExprPtr> final_expr;
 
         while (!match(TokenKind::RightBrace) && !match(TokenKind::End)) {
-            // 尝试解析声明语句
-            if (match(TokenKind::KwLet) || match(TokenKind::KwFn)) {
-                stmts.push_back(parse_statement()); // 声明语句自带分号
+            // 关键字语句（包括声明和控制流）
+            if (match(TokenKind::KwLet) || match(TokenKind::KwFn) ||
+                match(TokenKind::KwIf) || match(TokenKind::KwWhile) ||
+                match(TokenKind::KwFor)) {
+                stmts.push_back(parse_statement());
             } else {
                 // 可能是表达式语句或最终表达式
-                auto expr = parse_expression(); // 解析一个表达式（不含分号）
-
+                auto expr = parse_expression();
                 if (accept(TokenKind::Semicolon)) {
                     // 消费分号，构成表达式语句
                     stmts.push_back(Stmt::make(ExprStmt{std::move(expr)}));
                 } else {
                     // 没有分号，则这是块的最终表达式
                     final_expr = std::move(expr);
-                    break; // 结束块解析
+                    break;
                 }
             }
         }
@@ -446,7 +536,7 @@ class Parser {
         }
         expect(TokenKind::RightParen, "after parameters");
 
-        Type return_type{.built_in_type = BuiltInType::Unit, .name = "unit"};
+        Type return_type{.built_in_type = BuiltInType::Unit, .name = {"unit"}};
         if (accept(TokenKind::Arrow)) {
             return_type = parse_type();
         }
@@ -472,7 +562,15 @@ class Parser {
         if (match(TokenKind::KwFn)) {
             return parse_function_declaration();
         }
-        return parse_expression_statement();
+        if (match(TokenKind::KwIf) || match(TokenKind::KwWhile) ||
+            match(TokenKind::KwFor)) {
+            auto expr = parse_expression();
+            return Stmt::make(ExprStmt{std::move(expr)}); // 包装为语句，无分号
+        }
+        // 普通表达式语句，必须有分号
+        auto expr = parse_expression();
+        expect(TokenKind::Semicolon, "after expression statement");
+        return Stmt::make(ExprStmt{std::move(expr)});
     }
 };
 
@@ -551,6 +649,33 @@ class ParseTreePrinter {
         } else {
             out << " (void)";
         }
+    }
+
+    void print(IfExpr const& node) {
+        out << "if ";
+        print(*node.condition);
+        out << " ";
+        print(node.then_block); // BlockExpr 已有打印函数
+        if (node.else_expr) {
+            out << " else ";
+            print(**node.else_expr);
+        }
+    }
+
+    void print(WhileExpr const& node) {
+        out << "while ";
+        print(*node.condition);
+        out << " ";
+        print(node.body);
+    }
+
+    void print(ForExpr const& node) {
+        out << "for ";
+        print(node.loop_var);
+        out << " in ";
+        print(*node.iter_expr);
+        out << " ";
+        print(node.body);
     }
 
     void print(AssignExpr const& node) {

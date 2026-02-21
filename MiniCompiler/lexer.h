@@ -1,3 +1,6 @@
+// Copyright 2026 Chen Jisen. All rights reserved.
+// lexer.h
+
 #pragma once
 
 #include <cctype>
@@ -85,6 +88,11 @@ using std::vector;
     X(KwCompl, "compl", Keyword)                                               \
     X(KwLeftShift, "shl", Keyword)                                             \
     X(KwRightShift, "shr", Keyword)                                            \
+    X(KwIf, "if", Keyword)                                                     \
+    X(KwElse, "else", Keyword)                                                 \
+    X(KwWhile, "while", Keyword)                                               \
+    X(KwFor, "for", Keyword)                                                   \
+    X(KwIn, "in", Keyword)                                                     \
     X(Identifier, "Identifier", Identifier)                                    \
     X(Error, "(ERROR)", Unknown)                                               \
     X(End, "(END)", Unknown)
@@ -96,7 +104,6 @@ enum class TokenKind : uint8_t {
     TOKEN_LIST(AS_ENUM)
 
 #undef AS_ENUM
-
 };
 
 constexpr string_view to_string(TokenKind kind) {
