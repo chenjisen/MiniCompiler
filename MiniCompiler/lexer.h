@@ -91,6 +91,8 @@ using std::vector;
     X(KwIf, "if", Keyword)                                                     \
     X(KwElse, "else", Keyword)                                                 \
     X(KwWhile, "while", Keyword)                                               \
+    X(KwBreak, "break", Keyword)                                               \
+    X(KwContinue, "continue", Keyword)                                         \
     X(KwFor, "for", Keyword)                                                   \
     X(KwIn, "in", Keyword)                                                     \
     X(Identifier, "Identifier", Identifier)                                    \
@@ -300,11 +302,12 @@ class Lexer {
         if (is_digit(c)) {
             return lex_number();
         }
-
         if (is_ident_start(c)) {
             return lex_identifier();
         }
-
+        if (c == '\'') {
+            return lex_char_literal();
+        }
         if (c == '"') {
             return lex_string_literal();
         }
@@ -423,6 +426,51 @@ class Lexer {
             .lexeme =
                 source.substr(start_pos.index, pos.index - start_pos.index),
             .pos = start_pos};
+    }
+
+    Token lex_char_literal() {
+        advance(); // 消费开头的 '
+        SourcePosition start_pos = pos;
+
+        // 检查空字符 ''
+        if (peek() == '\'') {
+            advance();
+            errors.push_back("Empty character literal");
+            return {TokenKind::Error, "", start_pos};
+        }
+
+        // 处理转义字符
+        if (peek() == '\\') {
+            advance(); // 消费反斜杠
+            char escaped = peek();
+            if (escaped == '\0' || escaped == '\n') {
+                errors.push_back("Unterminated escape sequence");
+                return {TokenKind::Error, "", start_pos};
+            }
+            // 支持常见转义：\n, \t, \\, \'
+            if (escaped == 'n' || escaped == 't' || escaped == '\\' ||
+                escaped == '\'') {
+                advance(); // 消费转义字符
+            } else {
+                errors.push_back(
+                    std::format("Invalid escape sequence '\\{}'", escaped));
+                return {TokenKind::Error, "", start_pos};
+            }
+        } else {
+            advance(); // 消费普通字符
+        }
+
+        // 确保后面是闭合的单引号
+        if (peek() != '\'') {
+            errors.push_back("Multi-character character literal not allowed");
+            return {TokenKind::Error, "", start_pos};
+        }
+        advance(); // 消费最后的 '
+
+        // 提取字符内容（不包含引号）
+        string_view content =
+            source.substr(start_pos.index, pos.index - start_pos.index - 1);
+        return {TokenKind::CharLiteral, content, start_pos};
     }
 
     Token lex_string_literal() {

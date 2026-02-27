@@ -42,7 +42,15 @@ struct Identifier {
     string_view name;
 };
 
-enum class BuiltInType : uint8_t { Never, Unit, Bool, Int, Float, String };
+enum class BuiltInType : uint8_t {
+    Never,
+    Unit,
+    Bool,
+    Int,
+    Float,
+    Char,
+    String
+};
 
 constexpr string_view to_string(BuiltInType const type) {
     switch (type) {
@@ -56,6 +64,8 @@ constexpr string_view to_string(BuiltInType const type) {
         return "int";
     case BuiltInType::Float:
         return "float";
+    case BuiltInType::Char:
+        return "char";
     case BuiltInType::String:
         return "string";
     }
@@ -118,6 +128,10 @@ struct WhileExpr {
     BlockExpr body;
 };
 
+struct BreakExpr {};
+
+struct ContinueExpr {};
+
 struct ForExpr {
     Identifier loop_var;
     ExprPtr iter_expr;
@@ -155,6 +169,8 @@ struct Expr {
         BlockExpr,
         IfExpr,
         WhileExpr,
+        BreakExpr,
+        ContinueExpr,
         ForExpr>;
     Node node;
 
@@ -252,7 +268,7 @@ class Parser {
         return {expect(TokenKind::Identifier).lexeme};
     }
 
-    // type = "int" | "float" | "String" | "bool"
+    // type = "int" | "float" | "char" | "string" | "bool"
     Type parse_type() {
         auto token = expect(TokenKind::Identifier);
         optional<BuiltInType> type;
@@ -261,6 +277,9 @@ class Parser {
         }
         if (token.lexeme == "float") {
             type = BuiltInType::Float;
+        }
+        if (token.lexeme == "char") {
+            type = BuiltInType::Char;
         }
         if (token.lexeme == "string") {
             type = BuiltInType::String;
@@ -278,6 +297,9 @@ class Parser {
         }
         if (match(TokenKind::FloatLiteral)) {
             type = BuiltInType::Float;
+        }
+        if (match(TokenKind::CharLiteral)) {
+            type = BuiltInType::Char;
         }
         if (match(TokenKind::StringLiteral)) {
             type = BuiltInType::String;
@@ -342,6 +364,16 @@ class Parser {
                 .condition = std::move(condition), .body = std::move(body)});
     }
 
+    ExprPtr parse_break_expression() {
+        expect(TokenKind::KwBreak);
+        return Expr::make(BreakExpr{});
+    }
+
+    ExprPtr parse_continue_expression() {
+        expect(TokenKind::KwContinue);
+        return Expr::make(ContinueExpr{});
+    }
+
     ExprPtr parse_for_expression() {
         expect(TokenKind::KwFor);
         // 解析循环变量（标识符）
@@ -382,6 +414,12 @@ class Parser {
         }
         if (match(TokenKind::KwWhile)) {
             return parse_while_expression();
+        }
+        if (match(TokenKind::KwBreak)) {
+            return parse_break_expression();
+        }
+        if (match(TokenKind::KwContinue)) {
+            return parse_continue_expression();
         }
         if (match(TokenKind::KwFor)) {
             return parse_for_expression();
@@ -574,38 +612,6 @@ class Parser {
     }
 };
 
-// ==========================================
-// 5. Demo / Verification//
-// ==========================================
-// void printAST(const Node *node, int depth = 0) {
-//  string_view indent(depth * 2, ' ');
-//  if (auto *v = dynamic_cast<const VarDecl *>(node)) {
-//    std::cout << indent << "VarDecl: " << v->name << " (" << v->type <<
-//    ")\n";
-//    printAST(v->init.get(), depth + 1);
-//  } else if (auto *f = dynamic_cast<const FunctionDecl *>(node)) {
-//    std::cout << indent << "FnDecl: " << f->name << " -> " << f->return_type
-//              << "\n";
-//    printAST(f->body.get(), depth + 1);
-//  } else if (auto *b = dynamic_cast<const Block *>(node)) {
-//    std::cout << indent << "Block\n";
-//    for (const auto &s : b->stmts)
-//      printAST(s.get(), depth + 1);
-//  } else if (auto *a = dynamic_cast<const AssignStmt *>(node)) {
-//    std::cout << indent << "Assign: " << a->name << "\n";
-//    printAST(a->value.get(), depth + 1);
-//  } else if (auto *c = dynamic_cast<const CallExpr *>(node)) {
-//    std::cout << indent << "Call: " << c->callee << "\n";
-//    for (const auto &arg : c->args)
-//      printAST(arg.get(), depth + 1);
-//  } else if (auto *l = dynamic_cast<const LiteralExpr *>(node)) {
-//    std::cout << indent << "Lit: " << l->value << "\n";
-//  } else if (auto *es = dynamic_cast<const Expr *>(node)) {
-//    std::cout << indent << "ExprStmt\n";
-//    printAST(es->expr.get(), depth + 1);
-//  }
-//}
-
 class ParseTreePrinter {
   public:
     explicit ParseTreePrinter(std::ostream& o) : out(o) {}
@@ -668,6 +674,10 @@ class ParseTreePrinter {
         out << " ";
         print(node.body);
     }
+
+    void print(BreakExpr const&) { out << "break"; }
+
+    void print(ContinueExpr const&) { out << "continue"; }
 
     void print(ForExpr const& node) {
         out << "for ";
@@ -745,9 +755,16 @@ class ParseTreePrinter {
     void print(LiteralExpr const& lit) {
         switch (lit.type) {
         case BuiltInType::Int:
+            out << lit.value << "d";
+            break;
         case BuiltInType::Float:
+            out << lit.value << "f";
+            break;
         case BuiltInType::Bool:
             out << lit.value;
+            break;
+        case BuiltInType::Char:
+            out << "'" << lit.value << "'";
             break;
         case BuiltInType::String:
             out << '"' << lit.value << '"';

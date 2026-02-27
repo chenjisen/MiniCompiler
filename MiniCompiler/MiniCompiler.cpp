@@ -66,6 +66,19 @@ int main() {
         print(x);
         return;
     }
+	fn test2() {
+		let c: char = 'a';
+		let nl: char = '\n';
+		let i: int = 0;
+		while i < 10 {
+			if i == 5 {
+				break;
+			}
+			i = i + 1;
+			continue;
+		}
+		let last: int = { i };
+	}
 
     fn main() {
         foo(2 - 3, 3.14 * 2);
@@ -74,6 +87,7 @@ int main() {
         let result: int = increment(5);
         print("Result: ", result);
         test();
+        test2();
         let x1: int = if a > b { 5 } else { 10 };
         while i < 10 { i = i + 1; }
         print("Done");
