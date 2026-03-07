@@ -1,5 +1,5 @@
 // Copyright 2026 Chen Jisen. All rights reserved.
-// MiniCompiler.cpp : 此文件包含 "main" 函数。程序执行将在此处开始并结束。
+// MiniCompiler.cpp: 定义应用程序的入口点。
 
 #include "lexer.h"
 #include "parser.h"
@@ -95,8 +95,10 @@ int main() {
     )";
 
     try {
+        auto const out_dir = std::filesystem::path(PROJECT_ROOT) / "out";
+        std::filesystem::create_directories(out_dir);
         std::ofstream out_lex_file(
-            "out/lex.txt", std::ios::out | std::ios::binary);
+            out_dir / "lex.txt", std::ios::out | std::ios::binary);
         if (!out_lex_file) {
             throw std::runtime_error("Failed to open output lex file");
         }
@@ -120,7 +122,7 @@ int main() {
         std::cout << "Parsed OK. Statements=" << prog.statements.size() << "\n";
 
         std::ofstream out_parser_file(
-            "out/parser.txt", std::ios::out | std::ios::binary);
+            out_dir / "parser.txt", std::ios::out | std::ios::binary);
         if (!out_parser_file) {
             throw std::runtime_error("Failed to open output file");
         }
